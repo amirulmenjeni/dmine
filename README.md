@@ -1,1 +1,1 @@
-# pixelated-miner
+# dmine
