@@ -1,7 +1,7 @@
 #
 # Reddit spider.
 #
-# Author: Amirul Menjeni, amirulmenjeni@gmail.com
+# Author(s): Amirul Menjeni, amirulmenjeni@gmail.com
 #
 # This spider will crawl the r/all subreddit, where all
 # top posts from various subreddit are combined. There
@@ -27,11 +27,23 @@
 #            Time specification available.
 #  
 
+import scrapy
+
 class RedditSpider(scrapy.Spider):
     name = 'reddit'
-    
+  
+    # Process the category arguments.
+    # Returns url(s) for start_urls depending on the categories selected.
+    def process_args(self):
+        categories = self.category.split(',')
+        urls = []
+        for c in categories:
+            urls.append('https://www.reddit.com/%s' % c)
+        return urls
+
     def start_requests(self):
-        
+        start_urls = process_args()
+        print(start_urls)
 
     def parse(self, response):
         pass
