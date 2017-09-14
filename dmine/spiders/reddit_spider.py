@@ -28,6 +28,9 @@
 #  
 
 import scrapy
+import logging
+import sys
+import re
 
 class RedditSpider(scrapy.Spider):
     name = 'reddit'
@@ -35,15 +38,36 @@ class RedditSpider(scrapy.Spider):
     # Process the category arguments.
     # Returns url(s) for start_urls depending on the categories selected.
     def process_args(self):
-        categories = self.category.split(',')
+        categories = self.arg_category.split(',')
         urls = []
+
+        # Valid pattern for arg_category is cat1,cat2,cat3,..
+        valid_pattern = r'\w+(,\w+)+'
+        if not len(re.match(valid_pattern, self.arg_category)[0]) ==\
+               len(self.arg_category):
+            logging.error('Invalid pattern for arg_category spider argument. \
+                           Valid example: category1, category2,...')
+            sys.exit()
+
+        # List of valid categories
+        valid_categories = ['hot', 'new', 'rising', 'controversial',\
+                            'top', 'gilded']
+
         for c in categories:
+            if c not in valid_categories:
+                categories.remove(c)
+                continue
+            if c == 'hot':
+                c = ''
             urls.append('https://www.reddit.com/%s' % c)
         return urls
 
     def start_requests(self):
-        start_urls = process_args()
-        print(start_urls)
+        urls = self.process_args()
+        print('URLs:', urls)
+        for url in urls:
+            yield scrapy.Request(url, callback=self.parse)
 
     def parse(self, response):
+        print(response.url)
         pass
