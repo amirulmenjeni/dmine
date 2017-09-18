@@ -2,19 +2,32 @@
 # Author(s): Amirul Menjeni (amirulmenjeni@gmail.com
 #
 
+import sys
 import praw
+import logging
 import argparse
+from dmine_crawler import DmineCrawler
+from scrap_filter import ScrapComponent, ScrapOption,\
+                         Parser, ValueType, ComponentGroup
 
-class RedditCrawler():
-    r = None
+class RedditCrawler(DmineCrawler):
+    r = None # Reddit prawl instance.
+    g = None # This crawler's group of component.
+    args = None
 
-    def __init__(self):
+    def __init__(self, args):
+        DmineCrawler.__init__()
+        self.args = args
+
+        ################################################## 
+        # Initial PRAW instance.
+        ################################################## 
         client_id = 'j8vNY5xeqUemQg' # Acquired from www.reddit.com/prefs/apps
         client_secret = None
         redirect_uri = 'http://localhost:8080'
         user_agent='Mozilla/5.0'
-    
-        print('client_id: %s\nclient_secret: %s\nuser_agent: %s' %\
+
+        logging.info('client_id: %s\nclient_secret: %s\nuser_agent: %s' %\
                 (client_id, client_secret, user_agent))
     
         self.r = praw.Reddit(
@@ -23,41 +36,39 @@ class RedditCrawler():
                     redirect_uri=redirect_uri,
                     user_agent=user_agent
                 )
-        self.r.auth.url(['identity'], 'http://localhost:8080', implicit=True))
+        self.r.auth.url(['identity'], redirect_uri, implicit=True)
+
+        ##################################################
+        # Initialize scrap components.
+        ##################################################
+        # Create a component group to hold the components together.
+        self.g = ComponentGroup(args.filter)
+        self.g.add(ScrapComponent('p', 'post'))
+        self.g.add(ScrapComponent('c', 'comment'))
+        self.g.add(ScrapComponent('u', 'user'))
+
+        # Add options to the post component.
+        p = self.g.get('p')
+        p.add_option('t', 'title', ValueType.WORD_FILTER)
+        p.add_option('s', 'score', ValueType.INT_RANGE)
+        p.add_option('g', 'tag', ValueType.SINGLE_STRING)
+
+        # Add options to the comment component.
+        c = self.g.get('c')
+        c.add_option('t', 'text', ValueType.WORD_FILTER)
+        c.add_option('s', 'score', ValueType.INT_RANGE)
+        c.add_option('u', 'user', ValueType.SINGLE_STRING)
+
+        # Add options to the user component.
+        u = self.g.get('u')
+        u.add_option('b', 'born-date', ValueType.DATE_TIME)
+        logging.info(args)
+        f = args.filter
+        parsed_filter = Parser.parse_scrap_filter(self.g)
+
+        # If the filter is "p{/t:hello^world,~good bye}",
+        # this will print ['helo^world', '~good bye']
+        # print(parsed_filter['p', 't'])
 
     def crawl(self):
         pass
-
-    def print_help(self):
-        help_string =\
-                """
-                Usage:
-                    python reddit.py <options>
-
-                options:
-                    -f --filter <filter characters>
-                        The input argument <filter characters> is a series of
-                        alphabetical characters. The available characters for
-                        <filter characters> are as follows:
-                        
-                        p: posts
-                        c: comments
-                        u: users
-
-                        For example, with the argument -f pcu, dmine will 
-                        collect all posts (p) in all front page sections from 
-                        all subreddits. It will also scrape every comments (c) 
-                        in every posts scraped, as well as every users (u) 
-                        it see when scraping.
-
-                        Every filter character have their own filter options
-                        to allow a more flexible and advanced filtering method.
-                        The following are the subfilter characters for each
-                        filter character:
-
-                        p: subreddit, age, max_score, min_score
-                        c: subreddit, age, max_score, min_score, author
-                        u: age, 
-                """
-
-
