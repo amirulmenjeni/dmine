@@ -1,19 +1,6 @@
 #
 # Author(s): Amirul Menjeni (amirulmenjeni@gmail.com)
 #
-# e.g.
-# dmine -f 'p{/t:trump,islam/c:hello/r:200-300/a:49m/g:nsfw} c{/u:spez}'
-#
-# Explanation:
-#   Scrap component refers to general things found in the site that are to be
-#   scrapped such as posts, users, and comments. Each component have its own
-#   options. For example one can create a component called post, symbolized
-#   as p, and look for the post with the title (symbolized as t) containing 
-#   the word 'awesome' and fun', or 'colour', but not 'gore'. Thus, the scrap 
-#   filter for this would be 'p{%t:awesome^fun,colou?r,!gore}'. Note that 
-#   we use can use regex expression to look for the word colour/color. In other
-#   words, dmine will only scrap the post (p) that where its title contains
-#   the words awesome AND fun, or colou?r. But it will ignore the word gore. 
 
 import re
 import math
@@ -24,12 +11,8 @@ from enum import Enum, auto
 
 # This class describe the type of value of the component's option.
 class ValueType(Enum):
-    SINGLE_STRING = auto()
     INT_RANGE = auto()
-    WORD_FILTER = auto()
-    COMMA_SEPARATED_LIST = auto()
-    DATE_TIME = auto()
-    BOOLEAN = auto()
+    STRING_COMPARISON = auto()
 
 class ScrapComponent:
    
@@ -43,7 +26,6 @@ class ScrapComponent:
             logging.error('Scrap component symbol for the component \'%s\' '\
                           'must be an alphabet character.' % name)
             sys.exit()
-
         self.symbol = symbol
         self.name = name
 
@@ -75,7 +57,7 @@ class ScrapOption:
     symbol = ''
     name = ''
     value = ''
-    value_type = ValueType.SINGLE_STRING
+    value_type = ValueType.STRING_REGEX
 
     def __init__(self, symbol, name, value_type):
         self.symbol = symbol
@@ -99,22 +81,18 @@ class ScrapOption:
             logging.error('The scrap option named %s have no value assigned.'\
                           % self.name)
             sys.exit()
-        logging.info('Parsing...')
-        logging.info('value: %s, type: %s' % (self.value, self.value_type))
-        return Parser.parse_option_value(self.value_type, self.value)
+        if self.value_type in [ValueType.STRING_COMPARISON,
+                               ValueType.INT_RANGE]:
+            return self.value
 
-    def should_scrape(item):
-        out = False
-        if self.type == ValueType.BOOLEAN:
-            pass
-        elif self.type == ValueType.WORD_FILTER:
-            pass
-        elif self.type == ValueType.INT_RANGE:
-            pass
-        elif self.type == ValueType.DATE_TIME:
-            pass
+    def should_scrap(self, item):
+        logging.info(
+            '%s::%s: Should I scrap "%s"?'\
+            % (self.component.name, self.name, item)
+        )
+        out = Parser.compile(self, item)
         return out
-
+    
 class ComponentGroup:
     components = {}
     scrap_filter = ''
@@ -137,15 +115,7 @@ class ComponentGroup:
         return (component_symbol in self.components)
 
 class Parser:
-    # Returns a dictionary of scrap components. For example,
-    # the scrap filter shown as 
-    # p{/t:awesome^fun,colou?r,!gore/g:nsfl} c{/t:lol,me^too^thanks}
-    # will return the dictionary { p: [t, g], c: [t] }, where the keys
-    # p and c are the scrap components, and the lists [t, g] and [t] are
-    # their corresponding scrap options.
-    #
     # @param component_group: The object of type ComponentGroup.
-    # @param filter_input: Filter input syntax a{/a:...,.../b:...} b{/a:..}
     def parse_scrap_filter(component_group):
         # By default, filter_input is set to '*', which means
         # no filter is applied.
@@ -166,9 +136,6 @@ class Parser:
         # This is a dict where the keys are the component symbols and
         # their values are the option symbols contained by each component.
         components = {}
-        # This is a dict where the keys are the component and option symbols
-        # concatenated with '::' between them. The values are their parsed
-        # value used for filtering scraping selections.
         options = {}
 
         # Temp vars.
@@ -238,21 +205,38 @@ class Parser:
             return False
         return True
 
-    def parse_option_value(value_type, value):
-        if value_type == ValueType.SINGLE_STRING:
-            return value
-        elif value_type == ValueType.INT_RANGE:
-            return Parser.parse_int_range(value)
-        elif value_type == ValueType.COMMA_SEPARATED_LIST:
-            return Parser.parse_comma_separated_list(value)
-        elif value_type == ValueType.WORD_FILTER:
-            return Parser.parse_word_filter(value)
-        else:
-            logging.warning('Invalid value type: %s', value_type)
+    def compile(scrap_option, item):
+        x = item
 
-    def parse_int_range(value):
-        x = 0 # Init. variable called x.
-        code = parser.expr(value).compile()
+        #
+        # Check if the value type of item is expected
+        # for the value type of scrap option's value.
+        # And check if the value of the scrap option
+        # is as expected with its given value type.
+        #
+        if scrap_option.value_type == ValueType.INT_RANGE:
+            logging.info('item: %s' % item)
+            if not item.isdigit():
+                com_name = scrap_option.component.name
+                opt_name = scrap_option.name
+                val_type = scrap_option.value_type
+                logging.error(
+                    'The scrap option %s::%s have value type %s, '
+                    'but the tested item is not an integer.'\
+                    % (com_name, opt_name, val_type)
+                )
+                sys.exit()
+            if not Parser.is_value_valid(scrap_option):
+                logging.error(
+                    'The scrap option %s::%s have invalid value.'
+                )
+                sys.exit()
+            x = int(x)
+
+        #
+        # Use python parser to parse and compile the string.
+        #
+        code = parser.expr(scrap_option.value).compile()
         try:
             parsed_expr = eval(code)
         except NameError as e:
@@ -260,37 +244,24 @@ class Parser:
                             .group(1)
             logging.error(
                 'Unknown variable \'%s\' in the expression \'%s\'. '\
-                'Please change the variable name to \'x\''\
-                % (unknown_var, value)
+                'Please change the variable name to \'x\' or \'item\''\
+                % (unknown_var, i)
             )
             sys.exit()
+        return parsed_expr
 
-        # Test if the expression 'value' is an inequality
-        # (or equality).
-        if not isinstance(parsed_expr, bool):
-            logging.error('The value for ValueType.INT_RANGE must be a boolean'
-                          ' expression e.g. "x == 100" or "x < 5"')
-            sys.exit()
-        return value
+    # Compute whether or not the value of the scrap option
+    # meet the expectation of the value type it is given.
+    def is_value_valid(scrap_option):
+        if scrap_option.value_type == ValueType.INT_RANGE:
+            p =  '(((\d+\ *\<=?)?\ *x\ *\<=?\ *\d+)'\
+                '|(\d+\ *\<=?\ *x\ *(\<=?\ *\d+)?)'\
+                '|((\d+\ *\>=?)?\ *x\ *\>=?\ *\d+)'\
+                '|(\d+\ *\>=?\ *x\ *(\>=?\ *\d+)?)'\
+                '|(x\ *==\ *\d+)'\
+                '|(\d+\ *==\ *x))'
+            if re.match(p, scrap_option.value):
+                return True
+            return False
 
-    # Return a list of words to be search from a comma separated
-    # value.
-    def parse_comma_separated_list(value):
-        return value.split(',')
 
-    # @param value: The value is a string delimited by comma (',').
-    #               Each delimited item is either a single string,
-    #               a multiple strings join with ^, and a negation
-    #               of a single string.
-    #
-    # Suppose we have the scrap filter f = 'p{/t:cat^really shocked,very funny,
-    # ~grave injury,~repost}', and the component t is of type WORD_FILTER. 
-    # Then, the scraper will retrieve any component t which contains  both the 
-    # strings 'cat' and 'really shocked', or any which contains the string 
-    # 'very funny'. Any component which contain at least one string prefixed
-    # with ~ will not be retrieved. Thus, if any component t contains the 
-    # string 'grave injury' or 'repost', it will not be retrieved.
-    def parse_word_filter(value):
-        logging.info('Parsing value type: %s' % ValueType.WORD_FILTER)
-        items = value.split(',') 
-        return items

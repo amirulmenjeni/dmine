@@ -49,15 +49,12 @@ class RedditCrawler(DmineCrawler):
 
         # Add options to the post component.
         p = self.g.get('p')
-        p.add_option('t', 'title', ValueType.WORD_FILTER)
+        p.add_option('t', 'title', ValueType.STRING_COMPARISON)
         p.add_option('s', 'score', ValueType.INT_RANGE)
-        p.add_option('g', 'tag', ValueType.SINGLE_STRING)
 
         # Add options to the comment component.
         c = self.g.get('c')
-        c.add_option('t', 'text', ValueType.WORD_FILTER)
         c.add_option('s', 'score', ValueType.INT_RANGE)
-        c.add_option('u', 'user', ValueType.SINGLE_STRING)
 
         # Add options to the user component.
         u = self.g.get('u')
@@ -66,9 +63,14 @@ class RedditCrawler(DmineCrawler):
         f = args.filter
         parsed_filter = Parser.parse_scrap_filter(self.g)
 
-        # If the filter is "p{/t:hello^world,~good bye}",
-        # this will print ['helo^world', '~good bye']
-        # print(parsed_filter['p', 't'])
-
     def crawl(self):
-        pass
+        p = self.g.get('p')
+        title = p.get('t').should_scrap('hello world')
+        score = p.get('s').should_scrap('2')
+        logging.info((title, score))
+
+#        subreddit = r.subreddit('all')
+#        for submission in subreddit.hot(limit=500):
+#            print(submission.title)
+#            g.get('p').get('t').should_scrap(submission.title)
+#        pass
