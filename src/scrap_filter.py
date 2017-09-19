@@ -11,7 +11,7 @@ from enum import Enum, auto
 
 # This class describe the type of value of the component's option.
 class ValueType(Enum):
-    DATE_TIME = auto()
+    TIME_COMPARISON = auto()
     INT_RANGE = auto()
     STRING_COMPARISON = auto()
 
@@ -82,9 +82,7 @@ class ScrapOption:
             logging.error('The scrap option named %s have no value assigned.'\
                           % self.name)
             sys.exit()
-        if self.value_type in [ValueType.STRING_COMPARISON,
-                               ValueType.INT_RANGE]:
-            return self.value
+        return self.value
 
     def should_scrap(self, item):
         logging.info(
@@ -206,38 +204,76 @@ class Parser:
             return False
         return True
 
-    def compile(scrap_option, item):
-        x = item
+    def compile(scrap_option, scrap_target):
+        x = scrap_target
+        expr = ""
 
-        #
-        # Check if the value type of item is expected
-        # for the value type of scrap option's value.
-        # And check if the value of the scrap option
-        # is as expected with its given value type.
-        #
+        # Ensure that the scrap option's value and its target
+        # is valid according to the value type set for the
+        # scrap option.
+        if not Parser.is_value_valid(scrap_option) or\
+           not Parser.is_target_valid(scrap_option, scrap_target):
+            logging.error(
+                'The scrap option %s::%s have invalid value or scrap target.'
+            )
+            sys.exit()
+
+        # Parse the scrap target to its supposed data type
+        # to conduct boolean comparison operation for filtering.
+        if scrap_option.value_type == ValueType.TIME_COMPARISON:
+            # Dictionary of scrap target's value.
+            v = scrap_target.split(' ')
+            target_time = {
+                'y': 0, 'M': 0, 'd': 0,
+                'h': 0, 'm': 0, 's': 0
+            }
+            for u in v:
+                target_time[u[-1]] = int(u[:-1])
+
+            # Dictonary of scrap option's value.
+            v = scrap_option.value.split(' ')
+            value_time = {
+                'y': 0, 'M': 0, 'd': 0,
+                'h': 0, 'm': 0, 's': 0
+            }
+            for u in v:
+                value_time[u[-1]] = int(u[:-1])
+
+            # Conversion from the given time units to seconds.
+            secs = {
+                'y': 365 * 24 * 60 * 60,
+                'M': 30 * 24 * 60 * 60,
+                'd': 24 * 60 * 60,
+                'h': 60 * 60,
+                'm': 60,
+                's': 1
+            }
+
+            # Convert both target and option value to seconds
+            # to be compared.
+            scrap_target_secs = 0
+            for k in target_time:
+                scrap_target_secs += target_time[k] * secs[k]
+            scrap_value_secs = 0
+            for k in value_time:
+                scrap_value_secs += value_time[k] * secs[k]
+
+            if scrap_target_secs <= scrap_value_secs:
+                expr = "True"
+            else:
+                expr = "False"
+
         if scrap_option.value_type == ValueType.INT_RANGE:
-            logging.info('item: %s' % item)
-            if not item.isdigit():
-                com_name = scrap_option.component.name
-                opt_name = scrap_option.name
-                val_type = scrap_option.value_type
-                logging.error(
-                    'The scrap option %s::%s have value type %s, '
-                    'but the tested item is not an integer.'\
-                    % (com_name, opt_name, val_type)
-                )
-                sys.exit()
-            if not Parser.is_value_valid(scrap_option):
-                logging.error(
-                    'The scrap option %s::%s have invalid value.'
-                )
-                sys.exit()
             x = int(x)
+            expr = scrap_option.value
+
+        if scrap_option.value_type == ValueType.STRING_COMPARISON:
+            expr = scrap_option.value
 
         #
         # Use python parser to parse and compile the string.
         #
-        code = parser.expr(scrap_option.value).compile()
+        code = parser.expr(expr).compile()
         try:
             parsed_expr = eval(code)
         except NameError as e:
@@ -246,16 +282,63 @@ class Parser:
             logging.error(
                 'Unknown variable \'%s\' in the expression \'%s\'. '\
                 'Please change the variable name to \'x\' or \'item\''\
-                % (unknown_var, i)
+                % (unknown_var, scrap_option.value)
             )
             sys.exit()
         return parsed_expr
 
+    # Compute whether or not the target (item string scraped)
+    # meet the expectation of the value type of the scrape option
+    # it is tested with.
+    def is_target_valid(scrap_option, scrap_target):
+        com_name = scrap_option.component.name
+        opt_name = scrap_option.name
+        val_type = scrap_option.value_type
+        if scrap_option.value_type == ValueType.TIME_COMPARISON:
+            p = '(\d+[yMdhms]\ *(\d+[yMdhms])*)+'
+            try:
+                m = re.match(p, scrap_target)
+                if len(m.group(0)) != len(scrap_target):
+                    return False
+            except AttributeError as e:
+                logging.error(
+                    'The scrap option %s::%s have value type %s, '\
+                    'but the scrap target is not valid for its type.'
+                    % (com_name, opt_name, val_type)
+                )
+                return False
+        if scrap_option.value_type == ValueType.INT_RANGE:
+            if not scrap_target.isdigit():
+                logging.error(
+                    'The scrap option %s::%s have value type %s, '
+                    'but the tested scrap target is not an integer.'\
+                    % (com_name, opt_name, val_type)
+                )
+                return False
+        return True
+
     # Compute whether or not the value of the scrap option
     # meet the expectation of the value type it is given.
     def is_value_valid(scrap_option):
-        if scrap_option.value_type == ValueType.DATE_TIME:
-            pass
+        if scrap_option.value_type == ValueType.TIME_COMPARISON:
+            # Assume the value is space delimited string.
+            d = scrap_option.value.split(' ')
+            logging.info(d)
+            for i in d:
+                if re.match(r'\d+[yMdhms]{1}', i):
+                    pass
+                else:
+                    logging.error(
+                        'Invalid value for TIME_COMPARISON scrap option.'
+                    )
+                    return False
+                if int(i[:-1]) < 0:
+                    logging.error(
+                        'The amount of time passed can not be negative.'
+                    )
+                    return False
+            return True
+
         if scrap_option.value_type == ValueType.INT_RANGE:
             # This regex expression test for string expressions
             # for comparing numbers (inequality and equality).
@@ -268,5 +351,6 @@ class Parser:
             if re.match(p, scrap_option.value):
                 return True
             return False
+
         if scrap_option.value_type == ValueType.STRING_COMPARISON:
-            pass
+            return True

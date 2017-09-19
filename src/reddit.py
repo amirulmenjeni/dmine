@@ -51,6 +51,7 @@ class RedditCrawler(DmineCrawler):
         p = self.g.get('p')
         p.add_option('t', 'title', ValueType.STRING_COMPARISON)
         p.add_option('s', 'score', ValueType.INT_RANGE)
+        p.add_option('d', 'time-posted', ValueType.TIME_COMPARISON)
 
         # Add options to the comment component.
         c = self.g.get('c')
@@ -58,7 +59,7 @@ class RedditCrawler(DmineCrawler):
 
         # Add options to the user component.
         u = self.g.get('u')
-        u.add_option('b', 'born-date', ValueType.DATE_TIME)
+        u.add_option('b', 'born-date', ValueType.TIME_COMPARISON)
         logging.info(args)
         f = args.filter
         
@@ -66,17 +67,13 @@ class RedditCrawler(DmineCrawler):
         Parser.parse_scrap_filter(self.g)
 
     def crawl(self):
-        pass
         # Example
         #
-        # p = self.g.get('p')
-        # title = p.get('t').should_scrap('hello world')
-        # score = p.get('s').should_scrap('2')
-        # logging.info((title, score))
-
-#        subreddit = r.subreddit('all')
-#        for submission in subreddit.hot(limit=500):
-#            print(submission.title)
-#            g.get('p').get('t').should_scrap(submission.title)
-#        pass
+        p = self.g.get('p')
+        title = p.get('t').should_scrap('hello world')
+        logging.info(title)
+        score = p.get('s').should_scrap('2')
+        logging.info(score)
+        time = p.get('d').should_scrap('32d')
+        logging.info(time)
 
