@@ -11,6 +11,7 @@ from enum import Enum, auto
 
 # This class describe the type of value of the component's option.
 class ValueType(Enum):
+    DATE_TIME = auto()
     INT_RANGE = auto()
     STRING_COMPARISON = auto()
 
@@ -57,7 +58,7 @@ class ScrapOption:
     symbol = ''
     name = ''
     value = ''
-    value_type = ValueType.STRING_REGEX
+    value_type = ValueType.STRING_COMPARISON
 
     def __init__(self, symbol, name, value_type):
         self.symbol = symbol
@@ -253,8 +254,12 @@ class Parser:
     # Compute whether or not the value of the scrap option
     # meet the expectation of the value type it is given.
     def is_value_valid(scrap_option):
+        if scrap_option.value_type == ValueType.DATE_TIME:
+            pass
         if scrap_option.value_type == ValueType.INT_RANGE:
-            p =  '(((\d+\ *\<=?)?\ *x\ *\<=?\ *\d+)'\
+            # This regex expression test for string expressions
+            # for comparing numbers (inequality and equality).
+            p = r'(((\d+\ *\<=?)?\ *x\ *\<=?\ *\d+)'\
                 '|(\d+\ *\<=?\ *x\ *(\<=?\ *\d+)?)'\
                 '|((\d+\ *\>=?)?\ *x\ *\>=?\ *\d+)'\
                 '|(\d+\ *\>=?\ *x\ *(\>=?\ *\d+)?)'\
@@ -263,5 +268,5 @@ class Parser:
             if re.match(p, scrap_option.value):
                 return True
             return False
-
-
+        if scrap_option.value_type == ValueType.STRING_COMPARISON:
+            pass

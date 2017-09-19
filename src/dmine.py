@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 #
 # Author(s): Amirul Menjeni, amirulmenjeni@gmail.com
 #
@@ -7,9 +6,6 @@
 # Usage:
 #    dmine.py <domain> <option>
 
-
-
-=======
 import argparse
 import reddit
 import logging

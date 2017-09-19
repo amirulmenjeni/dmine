@@ -61,9 +61,12 @@ class RedditCrawler(DmineCrawler):
         u.add_option('b', 'born-date', ValueType.DATE_TIME)
         logging.info(args)
         f = args.filter
-        parsed_filter = Parser.parse_scrap_filter(self.g)
+        
+        # Finally, parse the scrap filter.
+        Parser.parse_scrap_filter(self.g)
 
     def crawl(self):
+        pass
         # Example
         #
         # p = self.g.get('p')
@@ -76,3 +79,4 @@ class RedditCrawler(DmineCrawler):
 #            print(submission.title)
 #            g.get('p').get('t').should_scrap(submission.title)
 #        pass
+
