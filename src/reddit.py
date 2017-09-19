@@ -64,10 +64,12 @@ class RedditCrawler(DmineCrawler):
         parsed_filter = Parser.parse_scrap_filter(self.g)
 
     def crawl(self):
-        p = self.g.get('p')
-        title = p.get('t').should_scrap('hello world')
-        score = p.get('s').should_scrap('2')
-        logging.info((title, score))
+        # Example
+        #
+        # p = self.g.get('p')
+        # title = p.get('t').should_scrap('hello world')
+        # score = p.get('s').should_scrap('2')
+        # logging.info((title, score))
 
 #        subreddit = r.subreddit('all')
 #        for submission in subreddit.hot(limit=500):
