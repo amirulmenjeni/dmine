@@ -40,23 +40,24 @@ class ScrapComponent:
         opt = ScrapOption(symbol, name, value_type)
         opt.set_component(self)
         self.options.update({
-            symbol: opt
+            symbol: opt,
+            name: opt
         })
 
     def set_group(self, group):
         self.group= group
 
-    def get(self, symbol):
+    def get(self, key):
         opt = None
         try:
-            opt = self.options[symbol]
+            opt = self.options[key]
         except KeyError:
             logging.error(
-                'There\'s no component with the symbol \'%s\''\
-                % symbol
+                'There\'s no component with the symbol or name \'%s\'.'\
+                % key
             )
             raise
-        return self.options[symbol]
+        return self.options[key]
 
     def contain(self, component_symbol):
         return (component_symbol in self.options)
@@ -77,9 +78,29 @@ class ScrapOption:
     def set_component(self, component):
         self.component = component
 
+    # Get the string value of this scrap option.
     def get_value(self):
-        pattern = '(?<=\/%s:)(.*?)(?=(\/[a-z]:|}))' % self.symbol
-        val = re.search(pattern, self.component.group.scrap_filter).group(0)
+        val = ''
+
+        # Try to capture the value using this scrap option's symbol.
+        # If that doesn't work, try using the name instead.
+        try:
+            pattern = '(?<=\/%s:)(.*?)(?=(\/[a-zA-Z\-]:|}))' % self.symbol
+            val = re.search(pattern, self.component.group.scrap_filter).group(0)
+        except AttributeError:
+            logging.debug(
+                'Unable to find the value of the scrap option '\
+                        '%s::%s using the symbol \'%s\' (maybe '\
+                        'the filter use name instead of symbol?)'\
+                        % (self.component.name, self.name, self.symbol)
+            )
+
+        try:
+            pattern = '(?<=\/%s:)(.*?)(?=(\/[a-zA-Z\-]:|}))' % self.name
+            val = re.search(pattern, self.component.group.scrap_filter).group(0)
+        except AttributeError:
+            raise
+
         return val
     
     def parse(self):
@@ -109,7 +130,8 @@ class ComponentGroup:
 
     def add(self, component):
         self.components.update({
-            component.symbol: component
+            component.symbol: component,
+            component.name: component
         })
         component.set_group(self)
 
@@ -134,8 +156,10 @@ class Parser:
         if f == '*':
             return None
 
-        r = r'([a-z]{)?(\/[a-z]{1})+'
+        r = r'([a-zA-Z\-]+{)?(\/[a-zA-Z\-]+)+'
         m = re.findall(r, f)
+
+        print(m)
 
         # Check if pattern is valid. The pattern is inferred to be invalid
         # if m is empty or when either position in the m[0] tuple is 
@@ -143,16 +167,12 @@ class Parser:
         if not m or (m[0][0] == '' or m[0][1] == ''):
             logging.error('Invalid filter pattern: %s', filter_input)
             sys.exit()
-
         
         components = {}
 
         # Temp vars.
         temp_key = ''
         temp_val = []
-        temp_component = None
-
-        logging.info('m: %s', m)
 
         # Populating the components dict.
         # Note: t is a 2-tuple containing the pattern ('p{', '/t')
@@ -160,29 +180,31 @@ class Parser:
         # respectively. Thus, t[0][0] represent the component symbol,
         # and t[1][1] represent the option symbol.
         for t in m:
+            tuple_com = t[0][:-1]
+            tuple_opt = t[1][1:]
             if t[0] is not '':
-                if not Parser.is_component_exist(component_group, t[0][0]):
+                if not Parser.is_component_exist(component_group, tuple_com):
                     continue
                 if not Parser.is_option_exist(component_group,
-                                              t[0][0], t[1][1]):
+                                              tuple_com, tuple_opt):
                     continue
-                temp_component = component_group.get(t[0][0])
-                opt = temp_component.get(t[1][1])
+                temp_component = component_group.get(tuple_com)
+                opt = temp_component.get(tuple_opt)
                 opt.value = opt.get_value()
                 parsed_value = opt.parse()
                 components.update({
-                    (t[0][0], t[1][1]): parsed_value
+                    (tuple_com, tuple_opt): parsed_value
                 })
-                temp_key = t[0][0]
+                temp_key = tuple_com
             else:
                 if not Parser.is_option_exist(component_group, temp_key, 
-                                              t[1][1]):
+                                              tuple_opt):
                     continue
-                opt = temp_component.get(t[1][1])
+                opt = temp_component.get(tuple_opt)
                 opt.value = opt.get_value()
                 parsed_value = opt.parse()
                 components.update({
-                    (temp_key, t[1][1]): parsed_value
+                    (temp_key, tuple_opt): parsed_value
                 })
         logging.info('components: %s' % components)
 
@@ -320,7 +342,7 @@ class Parser:
                 logging.error(
                     'The scrap option %s::%s have value type %s, '\
                     'but the scrap target is not a string.'\
-                    % (com_name, com_option, val_type)
+                    % (com_name, opt_name, val_type)
                 )
                 return False
         return True
@@ -348,13 +370,13 @@ class Parser:
                 return False
 
         if scrap_option.value_type == ValueType.STRING_COMPARISON:
-            m = re.match(r'.*\ x\ ?.*', scrap_option.value)
+            m = re.match(r'.*\ ?x\ ?.*', scrap_option.value)
             if not m:
                 logging.error(
                     'The scrap option %s::%s have value type %s, '\
                     'but the scrap option value is not a string comparison '\
-                    'operation.'
-                    % (com_name, opt_name, val_type)
+                    'operation. (Value: "%s")'
+                    % (com_name, opt_name, val_type, scrap_option.value)
                 )
                 return False
 

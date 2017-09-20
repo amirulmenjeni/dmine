@@ -15,7 +15,7 @@ def main():
     # Logger setting.
     ##################################################
     logger_root = logging.getLogger()
-    logger_root.setLevel(logging.DEBUG)
+    logger_root.setLevel(logging.WARNING)
 
     # Create console handler.
     ch = logging.StreamHandler()

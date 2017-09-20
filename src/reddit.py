@@ -51,6 +51,8 @@ class RedditCrawler(DmineCrawler):
         p = self.g.get('p')
         p.add_option('t', 'title', ValueType.STRING_COMPARISON)
         p.add_option('s', 'score', ValueType.INT_RANGE)
+        p.add_option('l', 'subreddit-list', ValueType.STRING_COMPARISON)
+        p.add_option('r', 'subreddit', ValueType.STRING_COMPARISON)
         p.add_option('d', 'time-posted', ValueType.TIME_COMPARISON)
 
         # Add options to the comment component.
@@ -68,11 +70,19 @@ class RedditCrawler(DmineCrawler):
 
     def crawl(self):
         # Example
-        p = self.g.get('p')
-        title = p.get('t').should_scrap('hello world')
-        logging.info(title)
-        score = p.get('s').should_scrap('2')
-        logging.info(score)
-        time = p.get('d').should_scrap('2y')
-        logging.info(time)
+        p = self.g.get('post')
+
+        # Get each post/submission in r/all. Print 
+        for post in self.r.subreddit('all').hot(limit=500):
+
+            # If the filter is "p{/r:x == 'creepy'/s:0 < x <= 1000}",
+            # only posts from r/creepy with score from 1 to 1000
+            # will be printed out.
+            if p.get('subreddit').should_scrap(str(post.subreddit)) and\
+               p.get('score').should_scrap(str(post.score)):
+                print('--------------------')
+                print('TITLE:', post.title)
+                print('SUBRE:', post.subreddit)
+                print('SCORE:', post.score)
+
 
