@@ -100,20 +100,24 @@ class ScrapOption:
             val = re.search(pattern, self.component.group.scrap_filter).group(0)
         except AttributeError:
             raise
-
+    
         return val
     
     def parse(self):
         if not self.component:
-            logging.error('The scrap option named %s is not assigned to a '\
-                          'component.' % self.name)
+            logging.error(
+                'The scrap option %s::%s is not assigned to a '\
+                'component.' % (self.component.name, self.name)
+            )
             sys.exit()
         if not self.value:
-            logging.error('The scrap option named %s have no value assigned.'\
-                          % self.name)
+            logging.error(
+                'The scrap option %s::%s have no value assigned.'\
+                 % (self.component.name, self.name))
             sys.exit()
         return self.value
 
+    # @param item: The scraped item of type string.
     def should_scrap(self, item):
         # The default is no filter.
         if self.value == '*': 
@@ -191,9 +195,8 @@ class Parser:
                 temp_component = component_group.get(tuple_com)
                 opt = temp_component.get(tuple_opt)
                 opt.value = opt.get_value()
-                parsed_value = opt.parse()
                 components.update({
-                    (tuple_com, tuple_opt): parsed_value
+                    (tuple_com, tuple_opt): opt.value
                 })
                 temp_key = tuple_com
             else:
@@ -202,9 +205,8 @@ class Parser:
                     continue
                 opt = temp_component.get(tuple_opt)
                 opt.value = opt.get_value()
-                parsed_value = opt.parse()
                 components.update({
-                    (temp_key, tuple_opt): parsed_value
+                    (temp_key, tuple_opt): opt.value
                 })
         logging.info('components: %s' % components)
 
@@ -247,6 +249,7 @@ class Parser:
                 % (scrap_option.component.name, scrap_option.name)
             )
             sys.exit()
+
 
         # Parse the scrap target to its supposed data type
         # to conduct boolean comparison operation for filtering.
@@ -301,6 +304,17 @@ class Parser:
             expr = scrap_option.value
 
         #
+        # Change the option name (variable) to a value to
+        # be compiled and computed.
+        #
+        var = {}
+        var[scrap_option.name] = scrap_target
+        expr = expr.replace(
+            scrap_option.name,
+            '\'' + var[scrap_option.name] + '\''
+        )
+
+        #
         # Use python parser to parse and compile the string.
         #
         code = parser.expr(expr).compile()
@@ -311,8 +325,8 @@ class Parser:
                             .group(1)
             logging.error(
                 'Unknown variable \'%s\' in the expression \'%s\'. '\
-                'Please change the variable name to \'x\' or \'item\''\
-                % (unknown_var, scrap_option.value)
+                'Please change the variable name to %s.'\
+                % (unknown_var, scrap_option.value, scrap_option.name)
             )
             sys.exit()
         return parsed_expr
@@ -370,7 +384,8 @@ class Parser:
                 return False
 
         if scrap_option.value_type == ValueType.STRING_COMPARISON:
-            m = re.match(r'.*\ ?x\ ?.*', scrap_option.value)
+            pattern = '%s (==|!=|(not )?in) .+' % opt_name
+            m = re.match(pattern, scrap_option.value)
             if not m:
                 logging.error(
                     'The scrap option %s::%s have value type %s, '\
