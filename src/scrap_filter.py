@@ -90,16 +90,15 @@ class ScrapOption:
         except AttributeError:
             logging.debug(
                 'Unable to find the value of the scrap option '\
-                        '%s::%s using the symbol \'%s\' (maybe '\
-                        'the filter use name instead of symbol?)'\
-                        % (self.component.name, self.name, self.symbol)
+                '%s::%s.'
+                % (self.component.name, self.name, self.symbol)
             )
-
-        try:
-            pattern = '(?<=\/%s:)(.*?)(?=(\/[a-zA-Z\-]:|}))' % self.name
-            val = re.search(pattern, self.component.group.scrap_filter).group(0)
-        except AttributeError:
-            raise
+            try:
+                pattern = '(?<=\/%s:)(.*?)(?=(\/[a-zA-Z\-]:|}))' % self.name
+                val = re.search(pattern, self.component.group.scrap_filter)\
+                        .group(0)
+            except AttributeError:
+                raise
     
         return val
     
@@ -239,6 +238,17 @@ class Parser:
         x = scrap_target
         expr = ""
 
+        # Subtitute the scrap option's name or symbol with
+        # x to allow using name/symbol as placeholder
+        # instead of x.
+        opt_symb = scrap_option.symbol
+        opt_name = scrap_option.name
+        if re.match('\ ?%s\ ?' % opt_symb, scrap_option.value):
+            scrap_option.value = scrap_option.value.replace(opt_symb, 'x')
+        elif re.match('\ ?%s\ ?' % opt_name, scrap_option.value):
+            scrap_option.value = scrap_option.value.replace(opt_name, 'x')
+
+        expr = expr.replace(scrap_option.name, 'x')
         # Ensure that the scrap option's value and its target
         # is valid according to the value type set for the
         # scrap option.
@@ -249,7 +259,6 @@ class Parser:
                 % (scrap_option.component.name, scrap_option.name)
             )
             sys.exit()
-
 
         # Parse the scrap target to its supposed data type
         # to conduct boolean comparison operation for filtering.
@@ -301,19 +310,10 @@ class Parser:
             expr = scrap_option.value
 
         if scrap_option.value_type == ValueType.STRING_COMPARISON:
+            x = str(x)
             expr = scrap_option.value
 
-        #
-        # Change the option name (variable) to a value to
-        # be compiled and computed.
-        #
-        var = {}
-        var[scrap_option.name] = scrap_target
-        expr = expr.replace(
-            scrap_option.name,
-            '\'' + var[scrap_option.name] + '\''
-        )
-
+        
         #
         # Use python parser to parse and compile the string.
         #
@@ -374,17 +374,24 @@ class Parser:
         if scrap_option.value_type == ValueType.INT_RANGE:
             # This regex expression test for string expressions
             # for comparing numbers (inequality and equality).
-            p = r'(((\d+\ *\<=?)?\ *x\ *\<=?\ *\d+)'\
-                '|(\d+\ *\<=?\ *x\ *(\<=?\ *\d+)?)'\
-                '|((\d+\ *\>=?)?\ *x\ *\>=?\ *\d+)'\
-                '|(\d+\ *\>=?\ *x\ *(\>=?\ *\d+)?)'\
+            p = r'(((\d+\ *\<=*)*\ *x\ *\<=*\ *\d+)'\
+                '|(\d+\ *\<=*\ *x\ *(\<=*\ *\d+)*)'\
+                '|((\d+\ *\>=*)*\ *x\ *\>=*\ *\d+)'\
+                '|(\d+\ *\>=*\ *x\ *(\>=*\ *\d+)*)'\
                 '|(x\ *==\ *\d+)'\
                 '|(\d+\ *==\ *x))'
             if not re.match(p, scrap_option.value):
+                print('pattern:', p)
+                logging.error(
+                    'The scrap optioon %s::%s have value type %s, '\
+                    'but the scrap option value is not an integer comparison '\
+                    'operation. (Value: "%s")'
+                    % (com_name, opt_name, val_type, scrap_option.value)
+                )
                 return False
 
         if scrap_option.value_type == ValueType.STRING_COMPARISON:
-            pattern = '%s (==|!=|(not )?in) .+' % opt_name
+            pattern = 'x\ (==|!=|(not )?in) .+'
             m = re.match(pattern, scrap_option.value)
             if not m:
                 logging.error(

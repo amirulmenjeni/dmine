@@ -12,12 +12,10 @@ from scrap_filter import ScrapComponent, ScrapOption,\
 
 class RedditCrawler(DmineCrawler):
     r = None # Reddit prawl instance.
-    g = None # This crawler's group of component.
-    args = None
+    g = None
 
     def __init__(self, args):
-        DmineCrawler.__init__()
-        self.args = args
+        DmineCrawler.__init__(self, self.g, args)
 
         ################################################## 
         # Initial PRAW instance.

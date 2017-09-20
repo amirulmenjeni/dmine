@@ -37,14 +37,27 @@ def main():
     parser = argparse.ArgumentParser(
                 description='Dmine is a data scraping tool.'
              )
+
+    # Positional argument.
     parser.add_argument('target', help='Target site to be scrapped e.g. reddit')
-    parser.add_argument('-f', '--filter', default='*')
+
+    # Optional arguments.
+    parser.add_argument('-f', '--filter', default='*', 
+                        help='Scrap filter string')
+    parser.add_argument('-F', '--filter-list', 
+                        help='List all defined scrap components and their'
+                             'options available for the chosen target.')
+    parser.add_argument('-t', '--target-list', 
+                        help='List all available target.')
+
+    # Parse arguments.
     args = parser.parse_args()
 
+    # Determine which webcrawler to use depending on
+    # target chosen.
     if args.target == 'reddit':
         reddit_crawler = reddit.RedditCrawler(args)
         reddit_crawler.crawl()
-        pass
     elif args.target == 'twitter':
         pass
     elif args.target == 'facebook':
