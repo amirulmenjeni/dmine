@@ -68,12 +68,11 @@ class RedditCrawler(DmineCrawler):
 
     def crawl(self):
         # Example
-        #
         p = self.g.get('p')
         title = p.get('t').should_scrap('hello world')
         logging.info(title)
         score = p.get('s').should_scrap('2')
         logging.info(score)
-        time = p.get('d').should_scrap('32d')
+        time = p.get('d').should_scrap('2y')
         logging.info(time)
 

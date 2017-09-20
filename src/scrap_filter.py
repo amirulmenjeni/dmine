@@ -114,7 +114,11 @@ class ComponentGroup:
         return (component_symbol in self.components)
 
 class Parser:
-    # @param component_group: The object of type ComponentGroup.
+    # @param component_group: The object of type ComponentGroup. 
+    # This method parse the scrap filter string of the component
+    # group and is needed to be called right after all components
+    # and their options has been initialized in order for every
+    # component to be usable.
     def parse_scrap_filter(component_group):
         # By default, filter_input is set to '*', which means
         # no filter is applied.
@@ -176,11 +180,6 @@ class Parser:
                 })
         logging.info('components: %s' % components)
 
-        out = {}
-        for com, opt in components.items():
-            pass
-        return components
-
     def is_component_exist(component_group, component_symbol):
         # Ignore non-existent scrap component.
         if not component_group.contain(component_symbol):
@@ -214,7 +213,8 @@ class Parser:
         if not Parser.is_value_valid(scrap_option) or\
            not Parser.is_target_valid(scrap_option, scrap_target):
             logging.error(
-                'The scrap option %s::%s have invalid value or scrap target.'
+                'The scrap option %s::%s have invalid value or scrap target.'\
+                % (scrap_option.component.name, scrap_option.name)
             )
             sys.exit()
 
@@ -294,24 +294,15 @@ class Parser:
         com_name = scrap_option.component.name
         opt_name = scrap_option.name
         val_type = scrap_option.value_type
+
         if scrap_option.value_type == ValueType.TIME_COMPARISON:
-            p = '(\d+[yMdhms]\ *(\d+[yMdhms])*)+'
-            try:
-                m = re.match(p, scrap_target)
-                if len(m.group(0)) != len(scrap_target):
-                    return False
-            except AttributeError as e:
-                logging.error(
-                    'The scrap option %s::%s have value type %s, '\
-                    'but the scrap target is not valid for its type.'
-                    % (com_name, opt_name, val_type)
-                )
-                return False
+            return Parser.validate_int_range(scrap_option, scrap_target)
+
         if scrap_option.value_type == ValueType.INT_RANGE:
             if not scrap_target.isdigit():
                 logging.error(
                     'The scrap option %s::%s have value type %s, '
-                    'but the tested scrap target is not an integer.'\
+                    'but the scrap target is not an integer.'\
                     % (com_name, opt_name, val_type)
                 )
                 return False
@@ -320,24 +311,12 @@ class Parser:
     # Compute whether or not the value of the scrap option
     # meet the expectation of the value type it is given.
     def is_value_valid(scrap_option):
+        com_name = scrap_option.component.name
+        opt_name = scrap_option.name
+        val_type = scrap_option.value_type
+
         if scrap_option.value_type == ValueType.TIME_COMPARISON:
-            # Assume the value is space delimited string.
-            d = scrap_option.value.split(' ')
-            logging.info(d)
-            for i in d:
-                if re.match(r'\d+[yMdhms]{1}', i):
-                    pass
-                else:
-                    logging.error(
-                        'Invalid value for TIME_COMPARISON scrap option.'
-                    )
-                    return False
-                if int(i[:-1]) < 0:
-                    logging.error(
-                        'The amount of time passed can not be negative.'
-                    )
-                    return False
-            return True
+            return Parser.validate_int_range(scrap_option, scrap_option.value)
 
         if scrap_option.value_type == ValueType.INT_RANGE:
             # This regex expression test for string expressions
@@ -354,3 +333,45 @@ class Parser:
 
         if scrap_option.value_type == ValueType.STRING_COMPARISON:
             return True
+
+    def validate_int_range(scrap_option, string):
+        d = string.split(' ')
+        com_name = scrap_option.component.name
+        opt_name = scrap_option.name
+        val_type = scrap_option.value_type
+
+        # Dict keeping record which unit has been used.
+        unit_instance = {
+            'y': False, 'M': False, 'd': False,
+            'h': False, 'm': False, 's': False
+        }
+
+        for i in d:
+            if re.match(r'^\d+[yMdhms]{1}$', i):
+                if unit_instance[i[-1]]:
+                    logging.warning(
+                        'Scrap component %s::%s: '\
+                        'Multiple instance of time with the unit \'%s\' '\
+                        'in "%s". Last occurence of the instance will be '\
+                        'used.'\
+                        % (com_name, opt_name, i[-1], scrap_option.value)
+                    )
+                else:
+                    unit_instance[i[-1]] = True
+            else:
+                logging.error(
+                    'The scrap option %s::%s have value type %s, '\
+                    'but the scrap option value or scrap target'\
+                    ' does not meet the pattern requirement.'\
+                    % (com_name, opt_name, val_type)
+                )
+                return False
+            if int(i[:-1]) < 0:
+                logging.error(
+                    'Scrap option %s::%s: '\
+                    'The amount of time passed can not be negative.'\
+                    % (com_name, opt_name)
+                )
+                return False
+        return True
+
