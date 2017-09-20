@@ -47,6 +47,15 @@ class ScrapComponent:
         self.group= group
 
     def get(self, symbol):
+        opt = None
+        try:
+            opt = self.options[symbol]
+        except KeyError:
+            logging.error(
+                'There\'s no component with the symbol \'%s\''\
+                % symbol
+            )
+            raise
         return self.options[symbol]
 
     def contain(self, component_symbol):
@@ -57,7 +66,7 @@ class ScrapOption:
     component = None # The component that contain this scrap option.
     symbol = ''
     name = ''
-    value = ''
+    value = '*'
     value_type = ValueType.STRING_COMPARISON
 
     def __init__(self, symbol, name, value_type):
@@ -85,10 +94,9 @@ class ScrapOption:
         return self.value
 
     def should_scrap(self, item):
-        logging.info(
-            '%s::%s: Should I scrap "%s"?'\
-            % (self.component.name, self.name, item)
-        )
+        # The default is no filter.
+        if self.value == '*': 
+            return True
         out = Parser.compile(self, item)
         return out
     
@@ -136,10 +144,8 @@ class Parser:
             logging.error('Invalid filter pattern: %s', filter_input)
             sys.exit()
 
-        # This is a dict where the keys are the component symbols and
-        # their values are the option symbols contained by each component.
+        
         components = {}
-        options = {}
 
         # Temp vars.
         temp_key = ''
@@ -180,6 +186,7 @@ class Parser:
                 })
         logging.info('components: %s' % components)
 
+    # Check if a given component exists in a component group.
     def is_component_exist(component_group, component_symbol):
         # Ignore non-existent scrap component.
         if not component_group.contain(component_symbol):
@@ -191,6 +198,7 @@ class Parser:
             return False
         return True
 
+    # Check if a given option exists in a component.
     def is_option_exist(component_group, component_symbol, option_symbol):
         # Ignore non-existent scrap option in this scrap component.
         if not component_group.get(component_symbol)\
@@ -306,6 +314,15 @@ class Parser:
                     % (com_name, opt_name, val_type)
                 )
                 return False
+
+        if scrap_option.value_type == ValueType.STRING_COMPARISON:
+            if not isinstance(scrap_target, str):
+                logging.error(
+                    'The scrap option %s::%s have value type %s, '\
+                    'but the scrap target is not a string.'\
+                    % (com_name, com_option, val_type)
+                )
+                return False
         return True
 
     # Compute whether or not the value of the scrap option
@@ -327,12 +344,21 @@ class Parser:
                 '|(\d+\ *\>=?\ *x\ *(\>=?\ *\d+)?)'\
                 '|(x\ *==\ *\d+)'\
                 '|(\d+\ *==\ *x))'
-            if re.match(p, scrap_option.value):
-                return True
-            return False
+            if not re.match(p, scrap_option.value):
+                return False
 
         if scrap_option.value_type == ValueType.STRING_COMPARISON:
-            return True
+            m = re.match(r'.*\ x\ ?.*', scrap_option.value)
+            if not m:
+                logging.error(
+                    'The scrap option %s::%s have value type %s, '\
+                    'but the scrap option value is not a string comparison '\
+                    'operation.'
+                    % (com_name, opt_name, val_type)
+                )
+                return False
+
+        return True
 
     def validate_int_range(scrap_option, string):
         d = string.split(' ')
