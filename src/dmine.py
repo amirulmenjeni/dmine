@@ -6,9 +6,11 @@
 # Usage:
 #    dmine.py <domain> <option>
 
+import sys
 import argparse
-import reddit
 import logging
+from reddit import RedditCrawler
+from dmine_crawler import DmineCrawler
 
 def main():
     ##################################################
@@ -37,20 +39,33 @@ def main():
     parser = argparse.ArgumentParser(
                 description='Dmine is a data scraping tool.'
              )
+
+    # Positional argument.
     parser.add_argument('target', help='Target site to be scrapped e.g. reddit')
-    parser.add_argument('-f', '--filter', default='*')
+
+    # Optional arguments.
+    parser.add_argument('-f', '--filter', default='*', 
+                        help='Scrap filter string')
+    parser.add_argument('-F', '--filter-list', action='store_true',
+                        dest='show_filter_list',
+                        help='List all defined scrap components and their'
+                             'options available for the chosen target.')
+    parser.add_argument('-t', '--target-list', action='store_true',
+                        dest='show_target_list',
+                        help='List all available target.')
+
+    # Parse arguments.
     args = parser.parse_args()
 
-    if args.target == 'reddit':
-        reddit_crawler = reddit.RedditCrawler(args)
-        reddit_crawler.crawl()
-        pass
-    elif args.target == 'twitter':
-        pass
-    elif args.target == 'facebook':
-        pass
-    else:
-        logging.error('Invalid target: %s', args.target) 
+    # Get list of classes that inherit from DmineCrawler.
+    crawler_classes = DmineCrawler.__subclasses__()
+
+    # Run the target crawler.
+    for c in crawler_classes:
+        if c.name == args.target:
+            instance = c()
+            instance.init(args)
+            instance.start()
 
 if __name__ == '__main__':
-   main() 
+    main() 

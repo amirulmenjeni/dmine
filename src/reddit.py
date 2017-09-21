@@ -6,19 +6,16 @@ import sys
 import praw
 import logging
 import argparse
+import utils
 from dmine_crawler import DmineCrawler
 from scrap_filter import ScrapComponent, ScrapOption,\
                          Parser, ValueType, ComponentGroup
 
 class RedditCrawler(DmineCrawler):
     r = None # Reddit prawl instance.
-    g = None # This crawler's group of component.
-    args = None
+    name = 'reddit'
 
-    def __init__(self, args):
-        DmineCrawler.__init__()
-        self.args = args
-
+    def init(self, args):
         ################################################## 
         # Initial PRAW instance.
         ################################################## 
@@ -42,13 +39,13 @@ class RedditCrawler(DmineCrawler):
         # Initialize scrap components.
         ##################################################
         # Create a component group to hold the components together.
-        self.g = ComponentGroup(args.filter)
-        self.g.add(ScrapComponent('p', 'post'))
-        self.g.add(ScrapComponent('c', 'comment'))
-        self.g.add(ScrapComponent('u', 'user'))
+        self.component_group = ComponentGroup(args.filter)
+        self.component_group.add(ScrapComponent('p', 'post'))
+        self.component_group.add(ScrapComponent('c', 'comment'))
+        self.component_group.add(ScrapComponent('u', 'user'))
 
         # Add options to the post component.
-        p = self.g.get('p')
+        p = self.component_group.get('p')
         p.add_option('t', 'title', ValueType.STRING_COMPARISON)
         p.add_option('s', 'score', ValueType.INT_RANGE)
         p.add_option('l', 'subreddit-list', ValueType.STRING_COMPARISON)
@@ -56,31 +53,32 @@ class RedditCrawler(DmineCrawler):
         p.add_option('d', 'time-posted', ValueType.TIME_COMPARISON)
 
         # Add options to the comment component.
-        c = self.g.get('c')
+        c = self.component_group.get('c')
         c.add_option('s', 'score', ValueType.INT_RANGE)
 
         # Add options to the user component.
-        u = self.g.get('u')
+        u = self.component_group.get('u')
         u.add_option('b', 'born-date', ValueType.TIME_COMPARISON)
         logging.info(args)
         f = args.filter
         
         # Finally, parse the scrap filter.
-        Parser.parse_scrap_filter(self.g)
+        Parser.parse_scrap_filter(self.component_group)
 
-    def crawl(self):
+    def start(self):
         # Example
-        p = self.g.get('post')
-
+        p = self.component_group.get('post')
+        counter  = 0
         # Get each post/submission in r/all. Print 
-        for post in self.r.subreddit('all').hot(limit=500):
-
+        for post in self.r.subreddit('all').hot(limit=None):
             # If the filter is "p{/r:x == 'creepy'/s:0 < x <= 1000}",
             # only posts from r/creepy with score from 1 to 1000
             # will be printed out.
             if p.get('subreddit').should_scrap(str(post.subreddit)) and\
                p.get('score').should_scrap(str(post.score)):
+                counter += 1
                 print('--------------------')
+                print('ENTRY:', counter)
                 print('TITLE:', post.title)
                 print('SUBRE:', post.subreddit)
                 print('SCORE:', post.score)
