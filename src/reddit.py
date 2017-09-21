@@ -13,7 +13,14 @@ from scrap_filter import ScrapComponent, ScrapOption,\
 
 class RedditCrawler(DmineCrawler):
     r = None # Reddit prawl instance.
+<<<<<<< HEAD
     name = 'reddit'
+=======
+    g = None
+
+    def __init__(self, args):
+        DmineCrawler.__init__(self, self.g, args)
+>>>>>>> e086bbbd27c97e5d5fb87423141d76e910dbc790
 
     def init(self, args):
         ################################################## 

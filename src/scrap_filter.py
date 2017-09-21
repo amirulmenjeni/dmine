@@ -91,7 +91,11 @@ class ScrapOption:
             logging.debug(
                 'Unable to find the value of the scrap option '\
                 '%s::%s.'
+<<<<<<< HEAD
                 % (self.component.name, self.name)
+=======
+                % (self.component.name, self.name, self.symbol)
+>>>>>>> e086bbbd27c97e5d5fb87423141d76e910dbc790
             )
             try:
                 pattern = '(?<=\/%s:)(.*?)(?=(\/[a-zA-Z\-]:|}))' % self.name
