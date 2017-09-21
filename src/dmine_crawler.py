@@ -2,7 +2,6 @@
 # dmine
 #
 
-<<<<<<< HEAD
 import sys
 import logging
 
@@ -24,22 +23,3 @@ class DmineCrawler:
                     'crawler in the class \'%s\' into something else.'
                     % (self.name, self.__class__.__name__))
                 sys.exit()
-=======
-from abc import ABCMeta, abstractmethod
-
-class DmineCrawler:
-    __metaclass__ = ABCMeta
-
-    component_group = None
-    args = None
-
-    # @param args: Parsed argparse argument.
-    def __init__(self, component_group, args):
-        self.component_group = component_group
-        self.args = args
-
-    @abstractmethod 
-    def crawl():
-        # TO DO: overwrite
-        pass
->>>>>>> e086bbbd27c97e5d5fb87423141d76e910dbc790
