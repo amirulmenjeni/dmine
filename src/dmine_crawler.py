@@ -16,7 +16,7 @@ class DmineCrawler:
         print(DmineCrawler.__subclasses__())
         for c in DmineCrawler.__subclasses__():
             class_name = self.__class__.__name__
-            if (c.name == self.name) and (c.__name__ != class__name):
+            if (c.name == self.name) and (c.__name__ != class_name):
                 logging.error(
                     'There\'s already a crawler with the name \'%s\'. Crawler '\
                     'names must be unique. Please change the name of the '\
