@@ -46,7 +46,9 @@ and the post is posted from _r/gaming_. The shorter alternative of the above scr
 
     $ dmine -s reddit -f "p{/t:'fallout' in x/s:s == 'gaming'}"
 
-In the shorter alternatives, we use the scrap component's and scrap option's symbols instead of its names.
+In the shorter alternatives, we use the scrap component's and scrap option's symbols instead of its names, and
+replace each scrap option's placeholder from using its name to use the symbol `x` instead.
+
 You can learn more about scrap filter [here](https://github.com/amirulmenjeni/dmine/wiki/Scrap-Filter).
 
 ## Coding style convention.
