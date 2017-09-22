@@ -20,44 +20,81 @@ class ScrapComponent:
     group = None # The group that contain this scrap component.
     symbol = ''
     name = ''
-    options = {}
 
-    def __init__(self, symbol, name):
-        if len(symbol) != 1 or not symbol.isalpha():
-            logging.error('Scrap component symbol for the component \'%s\' '\
-                          'must be an alphabet character.' % name)
+    # Used name and symbols, kept record to prevent conflict.
+    used_names = []
+    used_symbols = []
+
+    def __init__(self, name, symbol=None):
+        self.options = {}
+
+        # Symbol must be an alphabetical character.
+        if symbol:
+            if len(symbol) != 1 or not symbol.isalpha():
+                logging.error(
+                    'Scrap option symbol for the option %s::%s '\
+                    'must be an alphabet character.' 
+                    % (self.name, name)
+                )
+                sys.exit()
+    
+        # Prevent name/symbol conflict.
+        if name in ScrapComponent.used_names:
+            logging.error(
+                'The name \'%s\' has already been used.'
+                % name
+            )
             sys.exit()
+        if symbol in ScrapComponent.used_symbols:
+            logging.error(
+                'The symbol \'%s\' has already been used'
+                % symbol
+            )
+            sys.exit()
+
         self.symbol = symbol
         self.name = name
 
-    # To access the option:
-    #   my_scrap_component.get('p') will return the value
-    def add_option(self, symbol, name, value_type):
-        if len(symbol) != 1 or not symbol.isalpha():
-            logging.error('Scrap option symbol for the option \'%s\' '\
-                          'must be an alphabet character.' % name )
-            sys.exit()
-        opt = ScrapOption(symbol, name, value_type)
+        if self.symbol:
+            ScrapComponent.used_symbols.append(self.symbol)
+        ScrapComponent.used_names.append(self.name)
+
+    def add_option(self, name, value_type, symbol=None):
+        logging.info(
+            'Add option \'%s\' to \'%s\' (%s).'
+            % (name, self.name, id(self))
+        )
+        if symbol:
+            if len(symbol) != 1 or not symbol.isalpha():
+                logging.error(
+                    'Scrap option symbol for the option %s::%s '\
+                    'must be an alphabet character.' 
+                    % (self.name, name)
+                )
+                sys.exit()
+        opt = ScrapOption(name, value_type, symbol=symbol)
         opt.set_component(self)
-        self.options.update({
-            symbol: opt,
-            name: opt
-        })
+        if symbol:
+            self.options[symbol] = opt
+        self.options[name] = opt
+
+        keys = [k for k in self.options]
+        logging.info('option keys in \'%s\' component: %s' % (self.name, keys))
 
     def set_group(self, group):
-        self.group= group
+        self.group = group
 
     def get(self, key):
-        opt = None
         try:
-            opt = self.options[key]
+            return self.options[key]
         except KeyError:
             logging.error(
-                'There\'s no component with the symbol or name \'%s\'.'\
-                % key
+                'The scrap component \'%s\' has no option with the name or '\
+                'symbol \'%s\'. Please run "dmine -F %s" to '\
+                'see the list of available scrap components and their options.'
+                % (self.name, key, self.group.spider_name)
             )
-            raise
-        return self.options[key]
+            sys.exit()
 
     def contain(self, component_symbol):
         return (component_symbol in self.options)
@@ -70,12 +107,16 @@ class ScrapOption:
     value = '*'
     value_type = ValueType.STRING_COMPARISON
 
-    def __init__(self, symbol, name, value_type):
+    def __init__(self, name, value_type, symbol=None):
         self.symbol = symbol
         self.name = name
         self.value_type = value_type
 
     def set_component(self, component):
+        logging.info(
+            'Set \'%s\' (%s) as the option of the component \'%s\' (%s).'
+            % (self.name, id(self), component.name, id(component))
+        )
         self.component = component
 
     # Get the string value of this scrap option.
@@ -113,40 +154,64 @@ class ScrapOption:
 class ComponentGroup:
     components = {}
     scrap_filter = ''
+    spider_name = ''
     
-    def __init__(self, scrap_filter):
+    def __init__(self, scrap_filter, spider_name=''):
         self.scrap_filter = scrap_filter
+        self.spider_name = spider_name
 
     def add(self, component):
-        self.components.update({
-            component.symbol: component,
-            component.name: component
-        })
+        if component.symbol:
+            self.components[component.symbol] = component
+        self.components[component.name] = component
         component.set_group(self)
 
     def get(self, key):
-        return self.components[key]
+        try:
+            return self.components[key]
+        except KeyError as e:
+            logging.error(
+                'No component with the name or symbol \'%s\' exist. '\
+                'Please run "dmine -F %s" to see the list '\
+                'of available scrap components and their options.'
+                % (key, self.spider_name)
+            )
+            sys.exit()
 
-    # Check if a component_symbol representing a scrap component 
+    # Check if a key (name or symbol) representing a scrap component 
     # exists in this component group.
-    def contain(self, component_symbol):
-        return (component_symbol in self.components)
+    def contain(self, key):
+        return (key in self.components)
 
     # Returns a list of scrap components and its options
     # in the form of:
     # my_component_name_1 (my_component_symbol_1):
-    #    my_option_name_1 (my_option_symbol_1)
-    #    my_option_name_2 (my_option_symbol_2)
+    #    my_option_name_1 (my_option_symbol_1) [my_option_type_1]
+    #    my_option_name_2 (my_option_symbol_2) [my_option_type_2]
     #           .
     #           .
     # .
     # .
-    def data(self):
-        c = 0
-        data = {}
+    def detail(self):
+        lines = ''
+        for k in self.components:
+            if len(k) != 1:
+                name = k
+                symbol = self.components[k].symbol
+                component = '%s (%s):\n' % (name, symbol)
+                lines += component
+                for j in self.components[k].options:
+                    if len(j) != 1:
+                        name = j
+                        symbol = self.components[k].options[j].symbol
+                        val_type = self.components[k].options[j].value_type
+                        option = '    %s (%s) [%s]\n' % (name, symbol, val_type)
+                        lines += option
+                lines += '\n'
+        return lines
 
 class Parser:
-    # @param component_group: The object of type ComponentGroup. 
+    # @param component_group: The object of type ComponentGroup.
     # This method parse the scrap filter string of the component
     # group and is needed to be called right after all components
     # and their options has been initialized in order for every
@@ -185,11 +250,11 @@ class Parser:
             tuple_com = t[0][:-1]
             tuple_opt = t[1][1:]
             if t[0] is not '':
-                if not Parser.is_component_exist(component_group, tuple_com):
-                    continue
-                if not Parser.is_option_exist(component_group,
-                                              tuple_com, tuple_opt):
-                    continue
+#                if not Parser.is_component_exist(component_group, tuple_com):
+#                    continue
+#                if not Parser.is_option_exist(component_group,
+#                                              tuple_com, tuple_opt):
+#                    continue
                 temp_component = component_group.get(tuple_com)
                 opt = temp_component.get(tuple_opt)
                 opt.value = opt.get_value()
@@ -209,13 +274,13 @@ class Parser:
         logging.info('components: %s' % components)
 
     # Check if a given component exists in a component group.
-    def is_component_exist(component_group, component_symbol):
+    def is_component_exist(component_group, key):
         # Ignore non-existent scrap component.
-        if not component_group.contain(component_symbol):
+        if not component_group.contain(key):
             logging.warning(
-                'The scrap component with the symbol %s '\
-                'does not exist. This scrap component will '\
-                'be ignored.' % component_symbol
+                'The scrap component with the symbol or name %s '\
+                'does not exist.'
+                % key
             )
             return False
         return True
@@ -380,7 +445,6 @@ class Parser:
                 '|(x\ *==\ *\d+)'\
                 '|(\d+\ *==\ *x))'
             if not re.match(p, scrap_option.value):
-                print('pattern:', p)
                 logging.error(
                     'The scrap optioon %s::%s have value type %s, '\
                     'but the scrap option value is not an integer comparison '\

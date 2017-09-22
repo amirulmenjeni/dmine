@@ -13,7 +13,7 @@ class RedditSpider(DmineSpider):
     r = None # Reddit prawl instance.
     name = 'reddit'
 
-    def init(self, args):
+    def init(self):
         ################################################## 
         # Initial PRAW instance.
         ################################################## 
@@ -33,40 +33,26 @@ class RedditSpider(DmineSpider):
                 )
         self.r.auth.url(['identity'], redirect_uri, implicit=True)
 
-        ##################################################
-        # Initialize scrap components.
-        ##################################################
-        # Create a component group to hold the components together.
-        self.component_group = ComponentGroup(args.filter)
-        self.component_group.add(ScrapComponent('p', 'post'))
-        self.component_group.add(ScrapComponent('c', 'comment'))
-        self.component_group.add(ScrapComponent('u', 'user'))
+    def setup_filter(self, component_group):
+        # Add a scrap component called 'post'.
+        component_group.add(ScrapComponent('post', symbol='p'))
+        component_group.add(ScrapComponent('comment', symbol='c'))
 
-        # Add options to the post component.
-        p = self.component_group.get('p')
-        p.add_option('t', 'title', ValueType.STRING_COMPARISON)
-        p.add_option('s', 'score', ValueType.INT_RANGE)
-        p.add_option('l', 'subreddit-list', ValueType.STRING_COMPARISON)
-        p.add_option('r', 'subreddit', ValueType.STRING_COMPARISON)
-        p.add_option('d', 'time-posted', ValueType.TIME_COMPARISON)
+        # Add options to the 'post' component.
+        p = component_group.get('post')
+        p.add_option('title', ValueType.STRING_COMPARISON, symbol='t')
+        p.add_option('score', ValueType.INT_RANGE, symbol='s')
+        p.add_option('subreddit', ValueType.STRING_COMPARISON, symbol='r')
 
-        # Add options to the comment component.
-        c = self.component_group.get('c')
-        c.add_option('s', 'score', ValueType.INT_RANGE)
-
-        # Add options to the user component.
-        u = self.component_group.get('u')
-        u.add_option('b', 'born-date', ValueType.TIME_COMPARISON)
-        logging.info(args)
-        f = args.filter
-        
-        # Finally, parse the scrap filter.
-        Parser.parse_scrap_filter(self.component_group)
+        c = component_group.get('comment')
+        c.add_option('text', ValueType.STRING_COMPARISON, symbol='t')
+        c.add_option('score', ValueType.INT_RANGE, symbol='s')
 
     def start(self):
         # Example
         p = self.component_group.get('post')
         counter  = 0
+
         # Get each post/submission in r/all. Print 
         for post in self.r.subreddit('all').hot(limit=None):
             # If the filter is "p{/r:x == 'creepy'/s:0 < x <= 1000}",
