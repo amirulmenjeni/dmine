@@ -18,7 +18,7 @@ Dmine have a collection of spiders to choose from. Each spider has its own targe
     ...
     
 You can see that from the output of the command above, `spider_1` and `spider_2` is one of the available spiders. Each line in the output represent the _name_ of each spider. The names are supposed to be unique.
-By convention, the spider name intuitively represent the site of its target. Thus, if a spider's name is `reddit`, then you can be fairly sure that it target [Reddit](http://www.reddit.com) site.
+By convention, the spider name intuitively represent the site of its target. Thus, if a spider's name is `reddit`, then you can be fairly sure that the spider target [Reddit](http://www.reddit.com).
 
 ### Using a spider.
 
@@ -42,8 +42,8 @@ to find out the detail of a specific spider (e.g. reddit).
         score (s) [INT_RANGE]
     
 From the output executed above, we can now read the detail of the scrap filter for a spider named `reddit`.
-The part `post (p)` and `comment (c)` represent its scrap filter components, where `post` and `comment` is the 
-component name, and `(p)` and `(c)` is their respective symbol. If the no symbol is set for a scrap component or a scrap option, then `(None)` will be displayed instead (In the above example, `text`, the scrap option of the scrap component `comment` has no symbol. The list below each component name is the list of its available options. The all-capitalized string enclosed in the square braces `[...]` represent the type of input that a scrap option is expected to get.
+The unindented line with `post (p)` and `comment (c)` represent its scrap filter components, where `post` and `comment` is the 
+scrap component name, and `(p)` and `(c)` is their respective symbol. If the no symbol is set for a scrap component or a scrap option, then `(None)` will be displayed instead (In the above example, the scrap option `text` of the scrap component `comment` has no symbol. The list below each component name is the list of its available options. The all-capitalized string enclosed in the square braces `[...]` represent the type of input that a scrap option is expected to get.
 
 After we understood the detail of scrap filter for the reddit spider, we can run the spider with its scrap filter as shown below.
 
