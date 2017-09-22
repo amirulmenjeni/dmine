@@ -30,9 +30,9 @@ following command.
 ### Scrap filter.
 
 If you want a spider to filter out the items that it collects, use the [scrap filter](https://github.com/amirulmenjeni/dmine/wiki/Scrap-Filter) that the spider provide. Each spider employ its own scrap filter. Therefore you shouldn't assume that any two spiders share the same scrap filter. Run the following command
-to find out the detail of a specific spider (not yet implemented).
+to find out the detail of a specific spider (e.g. reddit).
 
-    $ dmine -s reddit -F
+    $ dmine -F reddit
    	post (p): /title (t) [STRING_COMPARISON], /subreddit (s) [STRING_COMPARISON], ...
     comment (c): /text (t) [STRING_COMPARISON], /score (s) [INT_RANGE], ...
     
