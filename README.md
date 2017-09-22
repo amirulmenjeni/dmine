@@ -1,6 +1,6 @@
 # This project is part of internship program under [Pixelated Enterprise](http://www.pixelated.asia).
 
-- [About Dmine](https://github.com/amirulmenjeni/dmine/edit/master/README.md/#About-Dmine.)
+- [About Dmine](https://github.com/amirulmenjeni/dmine/master/README.md/#About-Dmine.)
 
 ## About Dmine.
 
