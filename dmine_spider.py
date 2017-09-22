@@ -5,7 +5,7 @@
 import sys
 import logging
 
-class DmineCrawler:
+class DmineSpider:
     
     component_group = None
     name = ''
@@ -13,13 +13,13 @@ class DmineCrawler:
 
     def __init__(self):
         # Check for duplicate name.
-        print(DmineCrawler.__subclasses__())
-        for c in DmineCrawler.__subclasses__():
+        for c in DmineSpider.__subclasses__():
             class_name = self.__class__.__name__
             if (c.name == self.name) and (c.__name__ != class_name):
                 logging.error(
-                    'There\'s already a crawler with the name \'%s\'. Crawler '\
+                    'There\'s already a crawler with the name \'%s\'. DmineSpider '\
                     'names must be unique. Please change the name of the '\
-                    'crawler in the class \'%s\' into something else.'
-                    % (self.name, self.__class__.__name__))
+                    'miner in the class \'%s\' into something else.'
+                    % (self.name, self.__class__.__name__)
+                )
                 sys.exit()

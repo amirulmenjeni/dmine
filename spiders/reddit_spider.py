@@ -5,13 +5,11 @@
 import sys
 import praw
 import logging
-import argparse
-import utils
-from dmine_crawler import DmineCrawler
+from dmine_spider import DmineSpider
 from scrap_filter import ScrapComponent, ScrapOption,\
                          Parser, ValueType, ComponentGroup
 
-class RedditCrawler(DmineCrawler):
+class RedditSpider(DmineSpider):
     r = None # Reddit prawl instance.
     name = 'reddit'
 
