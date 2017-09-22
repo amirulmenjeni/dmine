@@ -47,10 +47,13 @@ After we understood the detail of scrap filter for the reddit spider, we can run
 As you may have expected, the scrap filter above will only take posts with the word `fallout` in the title,
 and the post is posted from _r/gaming_. The shorter alternative of the above scrap filter is:
 
-    $ dmine -s reddit -f "p{/t:'fallout' in x/s:s == 'gaming'}"
+    $ dmine -s reddit -f "p{/t:'fallout' in x/s:x == 'gaming'}"
 
-In the shorter alternatives, we use the scrap component's and scrap option's symbols instead of its names, and
-replace each scrap option's placeholder from using its name to use the symbol `x` instead.
+Using this shorter method, we use the scrap component's and scrap option's symbols instead of its names, and
+replace each scrap option's placeholder from using its name to use the symbol `x` instead. If you'd like, can also use a mix
+of names and symbols like so:
+
+    $ dmine -s reddit -f "p{/title: 'fallout' in x /s: x == 'gaming'}"
 
 You can learn more about scrap filter [here](https://github.com/amirulmenjeni/dmine/wiki/Scrap-Filter).
 
