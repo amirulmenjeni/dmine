@@ -1,10 +1,10 @@
 # This project is part of internship program under [Pixelated Enterprise](http://www.pixelated.asia).
 
-## About dmine.
+## About Dmine.
 
 Dmine is webscraping tool that extract data from social media and convert the extracted data into something useful. Currently, we are working on supporting widely used social media platform around the globe; [Reddit](http://www.reddit.com), [Twitter](http://www.twitter.com) and [Facebook](http://www.facebook.com). 
 
-## Usage.
+## Using Dmine.
 
 ### Listing out available spiders.
 Dmine have a collection of spiders to choose from. Each spider has its own target site(s). To view the currently available spiders, run the command
