@@ -256,11 +256,6 @@ class Parser:
             tuple_com = t[0][:-1]
             tuple_opt = t[1][1:]
             if t[0] is not '':
-#                if not Parser.is_component_exist(component_group, tuple_com):
-#                    continue
-#                if not Parser.is_option_exist(component_group,
-#                                              tuple_com, tuple_opt):
-#                    continue
                 temp_component = component_group.get(tuple_com)
                 opt = temp_component.get(tuple_opt)
                 opt.value = opt.raw_value()
@@ -279,31 +274,6 @@ class Parser:
                 })
         logging.info('components: %s' % components)
 
-    # Check if a given component exists in a component group.
-    def is_component_exist(component_group, key):
-        # Ignore non-existent scrap component.
-        if not component_group.contain(key):
-            logging.warning(
-                'The scrap component with the symbol or name %s '\
-                'does not exist.'
-                % key
-            )
-            return False
-        return True
-
-    # Check if a given option exists in a component.
-    def is_option_exist(component_group, component_symbol, option_symbol):
-        # Ignore non-existent scrap option in this scrap component.
-        if not component_group.get(component_symbol)\
-                .contain(option_symbol):
-            logging.warning(
-                'The scrap component \'%s\' does not contain '\
-                'the scrap option \'%s\'. This scrap option '\
-                'will be ignored.' % (component_symbol, option_symbol)
-            )
-            return False
-        return True
-
     def compile(scrap_option, scrap_target):
         x = scrap_target
         expr = ""
@@ -313,10 +283,12 @@ class Parser:
         # instead of x.
         opt_symb = scrap_option.symbol
         opt_name = scrap_option.name
-        if re.match('\ ?%s\ ?' % opt_symb, scrap_option.value):
-            scrap_option.value = scrap_option.value.replace(opt_symb, 'x')
-        elif re.match('\ ?%s\ ?' % opt_name, scrap_option.value):
+        if re.match('\ ?%s\ ?' % opt_name, scrap_option.value):
+            print('replacing symbol')
             scrap_option.value = scrap_option.value.replace(opt_name, 'x')
+        elif re.match('\ ?%s\ ?' % opt_symb, scrap_option.value):
+            print('replacing name')
+            scrap_option.value = scrap_option.value.replace(opt_symb, 'x')
 
         expr = expr.replace(scrap_option.name, 'x')
         # Ensure that the scrap option's value and its target

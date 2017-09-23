@@ -5,6 +5,7 @@
 import sys
 import praw
 import logging
+from itertools import chain
 from dmine_spider import DmineSpider
 from scrap_filter import ScrapComponent, ValueType
 from spider_input import Input, SpiderInput, InputType, Parser
@@ -112,8 +113,17 @@ class RedditSpider(DmineSpider):
         scan_subs = '+'.join(scan_subs.split(','))
         logging.info('scan subreddits: %s' % scan_subs)
 
-        for post in self.r.subreddit(scan_subs).hot(limit=limit):
+        # ListingGenerator of each sections.
+        hot_section = self.r.subreddit(scan_subs).hot(limit=limit)
+        new_section = self.r.subreddit(scan_subs).new(limit=limit)
+        rising_section = self.r.subreddit(scan_subs).rising(limit=limit)
+        top_section = self.r.subreddit(scan_subs).top(limit=limit)
+        gilded_section = self.r.subreddit(scan_subs).gilded(limit=limit)
 
+        all_sections = chain(hot_section, new_section, rising_section,
+                             top_section, gilded_section)
+
+        for post in all_sections:
             if p.get('subreddit').should_scrap(str(post.subreddit)) and\
                p.get('score').should_scrap(str(post.score)):
                 counter += 1
@@ -122,5 +132,4 @@ class RedditSpider(DmineSpider):
                 print('TITLE:', post.title)
                 print('SUBRE:', post.subreddit)
                 print('SCORE:', post.score)
-
 
