@@ -92,7 +92,7 @@ To find out what are inputs available for a specfic spider (e.g. `reddit` spider
         Default value : None
         Info          : The limit on how many posts will be scanned.
 
-Spider input syntax is a bit similar to scrap filter syntax. Use the example above. suppose we want to only scan posts from r/gaming and r/mmorpg, and we want to limit the number of posts scanned to 100 only.We could run the `reddit` command like so:
+Spider input syntax is a bit similar to scrap filter syntax. Using the example above, suppose we want to only scan posts from r/gaming and r/mmorpg, and we want to limit the number of posts scanned to 100 only. We could run the `reddit` command like so:
 
     $ dmine -s reddit -I "/scan-subreddit: gaming,mmorpg /limit: 100"
 

@@ -209,6 +209,8 @@ class ComponentGroup:
                         val_type = str(self.get(k).get(j).value_type)
                         val_type = val_type[val_type.find('.') + 1:]
                         info = self.get(k).get(j).info
+                        if info == '':
+                            info = '(No info available)'
                         option =  '    %s (%s): \n' % (name, symbol)
                         option += '        Value type : %s\n' % val_type
                         option += '        Info       : %s\n' % info
