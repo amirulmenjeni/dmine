@@ -29,22 +29,36 @@ following command.
     
 ### Scrap filter.
 
-If you want a spider to filter out the items that it collects, use the [scrap filter](https://github.com/amirulmenjeni/dmine/wiki/Scrap-Filter) that the spider provide. Each spider employ its own scrap filter. Therefore you shouldn't assume that any two spiders share the same scrap filter. Run the following command
-to find out the detail of a specific spider (e.g. reddit).
+If you want a spider to filter out the items that it collects, use the [scrap filter](https://github.com/amirulmenjeni/dmine/wiki/Scrap-Filter) that the spider provide. Each spider employ its own scrap filter. Therefore you shouldn't assume that any two spiders share the same scrap filter. Run the following command to find out the detail of a specific spider (e.g. reddit).
 
     $ dmine -F reddit
-   	post (p): 
-        title (t) [STRING_COMPARISON]
-        subreddit (s) [STRING_COMPARISON]
-        ...
-    comment (c): 
-        text (None) [STRING_COMPARISON]
-        score (s) [INT_RANGE]
+    post (p):
+    A user submitted content to a subreddit (i.e. submission). Not to be confused with a comment.
+        title (t): 
+            Value type : STRING_COMPARISON
+            Info       : The title of the post.
+        score (s): 
+            Value type : INT_RANGE
+            Info       : The score of the post (i.e. upvotes/downvotes).
+        subreddit (r): 
+            Value type : STRING_COMPARISON
+            Info       : 
+        allow-subreddit (A): 
+            Value type : LIST
+            Info       : Specify which subreddit(s) allowed to be scraped.
+        block-subreddit (B): 
+            Value type : LIST
+            Info       : Specify which subreddit(s) not allowed to be scraped.
     
-From the output executed above, we can now read the detail of the scrap filter for a spider named `reddit`.
-The unindented line with `post (p)` and `comment (c)` represent its scrap filter components, where `post` and `comment` is the 
-scrap component name, and `(p)` and `(c)` is their respective symbol. If the no symbol is set for a scrap component or a scrap option, then `(None)` will be displayed instead (In the above example, the scrap option `text` of the scrap component `comment` has no symbol. The list below each component name is the list of its available options. The all-capitalized string enclosed in the square braces `[...]` represent the type of input that a scrap option is expected to get.
-
+    comment (c):
+    A user submitted comment to a particular post.
+        text (t): 
+            Value type : STRING_COMPARISON
+            Info       : 
+        score (s): 
+            Value type : INT_RANGE
+            Info       : 
+    
 After we understood the detail of scrap filter for the reddit spider, we can run the spider with its scrap filter as shown below.
 
     $ dmine -s reddit -f "post{/title: 'fallout' in title /subreddit: subreddit == 'gaming'}"
@@ -62,7 +76,29 @@ of names and symbols like so:
 
 You can learn more about scrap filter [here](https://github.com/amirulmenjeni/dmine/wiki/Scrap-Filter).
 
-## Coding style convention.
+### Spider Input
 
-You can read about our coding style convention [here](Coding-Convention).
+While a scrap filter is used to make a 'yes or no' selection as to which component a spider's target website should scrape, a spider input is used to pass information to the spider. What this information is used for is up to the spider's developer to decide. 
+
+To find out what are inputs available for a specfic spider (e.g. `reddit` spider), run the followig comand:
+
+    $ dmine -I reddit
+    scan-subreddit (r):
+        Input type    : STRING
+        Default value : all
+        Info          : A comma separated list of subreddits to be scanned.
+    limit (l):
+        Input type    : INTEGER
+        Default value : None
+        Info          : The limit on how many posts will be scanned.
+
+Spider input syntax is a bit similar to scrap filter syntax. Use the example above. suppose we want to only scan posts from r/gaming and r/mmorpg, and we want to limit the number of posts scanned to 100 only.We could run the `reddit` command like so:
+
+    $ dmine -s reddit -I "/scan-subreddit: gaming,mmorpg /limit: 100"
+
+Similar to scrap filter, we can use symbols instead of the names of each spider input.
+
+    $ dmine -s reddit -I "/r: gaming,mmorpg /l: 100"
+
+
 

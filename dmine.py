@@ -9,6 +9,7 @@ import argparse
 import logging
 from spiders import *
 from scrap_filter import ComponentGroup
+from spider_input import SpiderInput
 from dmine_spider import DmineSpider
 
 def main():
@@ -16,17 +17,30 @@ def main():
     # Parser.
     ##################################################
     parser = argparse.ArgumentParser(
-                description='Dmine is a data scraping tool.'
+                description='Dmine is a data scraping tool.',
+                epilog='Checkout our github page at http://github.com'\
+                        '/amirulmenjeni/dmine.'
              )
     parser.add_argument('-f', '--filter', default='*', 
-                        metavar='scrap_filter_string',
-                        help='Scrap filter string')
+                        metavar='<scrap_filter_string>',
+                        help='Scrap filter string.')
+
+    parser.add_argument('-i', '--input', 
+                        metavar='<input_string>',
+                        dest='spider_input',
+                        help='Spider-specific input string.')
 
     parser.add_argument('-F', '--filter-detail',
                         metavar='<spider_name>',
                         dest='filter_detail',
-                        help='Show scrap filter detail for a specific spider '\
-                             'with the name <spider_name>')
+                        help='Show scrap filter detail for a spider '\
+                             'named <spider_name>.')
+
+    parser.add_argument('-I', '--input-detail',
+                        metavar='<spider_name>',
+                        dest='input_detail',
+                        help='Show input detail for a specific spider '\
+                             'named <spider_name>.')
 
     parser.add_argument('-s', '--spider', default='',
                         metavar='<spider_name>',
@@ -68,10 +82,13 @@ def main():
     # Add the console handler to logger.
     logger_root.addHandler(ch)
 
-
     ##################################################
     # Run according to arguments.
     ##################################################
+
+    # Print help if no argument passed.
+    if not len(sys.argv) > 1:
+        parser.print_help()
 
     # Show a list of spiders available and exit.
     if args.show_spider_list:
@@ -86,15 +103,19 @@ def main():
         print_filter_detail(args.filter_detail, spider_classes) 
         sys.exit()
 
+    # Show the input detail of a given spider.
+    if args.input_detail:
+        print_input_detail(args.input_detail, spider_classes)
+        sys.exit()
+
     # Run the spider if it is given.
+    found = False
     if args.spider:
         for c in spider_classes:
             if c.name == args.spider:
+                found = True
                 # Create instance.
                 instance = c()
-
-                # Initialze your spidery needs.
-                instance.init()
 
                 # Set up component group.
                 instance.component_group = ComponentGroup(
@@ -103,12 +124,20 @@ def main():
                                            )
                 instance.setup_filter(instance.component_group)
 
-                # Parse the filter.
-                instance.parse_filter()
+                # Set up spider input.
+                instance.spider_input = SpiderInput(
+                                            args.spider_input, 
+                                            spider_name=c.name
+                                        )
+                instance.setup_input(instance.spider_input)
+
+                # Parse the scrap filter and spider input.
+                instance.run_parsers()
 
                 # Start spider.
                 instance.start()
-        logging.error('No spider named \'%s\' found.' % args.spider)
+        if not found:
+            logging.error('No spider named \'%s\' found.' % args.spider)
 
 # Print the name of every spider created
 # (Class that inherits from DmineSpider).
@@ -116,14 +145,36 @@ def print_spider_list():
     for c in DmineSpider.__subclasses__():
         print(c.name)
 
+# Print the filter detail of a specified spider.
 def print_filter_detail(spider_name, spider_classes):
+    found = False
     for c in spider_classes:
         if c.name == spider_name:
             instance = c()
-            instance.component_group = ComponentGroup("")
+            instance.component_group = ComponentGroup('') # Don't need filter
+                                                          # string for this.
             instance.setup_filter(instance.component_group)
             print(instance.component_group.detail())
+            found = True
+            break
+    if not found:
+        print('No spider named \'%s\' found.' % spider_name)
 
+# Print the input detail of a specified spider.
+def print_input_detail(spider_name, spider_classes):
+    found = False
+    for c in spider_classes:
+        if c.name == spider_name:
+            instance = c()
+            instance.spider_input = SpiderInput('') # Don't need input string.
+            instance.setup_input(instance.spider_input)
+            print(instance.spider_input.detail())
+            found = True
+            break
+    if not found:
+        print('No spider named \'%s\' found.' % spider_name)
+
+# Get the logging enum value of log levels.
 def get_log_level(log_level):
     if log_level == 'DEBUG':
         return logging.DEBUG

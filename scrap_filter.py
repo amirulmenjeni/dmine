@@ -14,18 +14,23 @@ class ValueType(Enum):
     TIME_COMPARISON = auto()
     INT_RANGE = auto()
     STRING_COMPARISON = auto()
+    LIST = auto()
 
 class ScrapComponent:
    
     group = None # The group that contain this scrap component.
     symbol = ''
     name = ''
+    info = ''
 
     # Used name and symbols, kept record to prevent conflict.
     used_names = []
     used_symbols = []
 
-    def __init__(self, name, symbol=None):
+    # @param name: Name of the scrap component.
+    # @param symbol: Symbol of the scrap component.
+    # @param info: Information about the scrap component.
+    def __init__(self, name, symbol=None, info=''):
         self.options = {}
 
         # Symbol must be an alphabetical character.
@@ -54,16 +59,13 @@ class ScrapComponent:
 
         self.symbol = symbol
         self.name = name
+        self.info = info
 
         if self.symbol:
             ScrapComponent.used_symbols.append(self.symbol)
         ScrapComponent.used_names.append(self.name)
 
-    def add_option(self, name, value_type, symbol=None):
-        logging.info(
-            'Add option \'%s\' to \'%s\' (%s).'
-            % (name, self.name, id(self))
-        )
+    def add_option(self, name, value_type, symbol=None, info=''):
         if symbol:
             if len(symbol) != 1 or not symbol.isalpha():
                 logging.error(
@@ -72,14 +74,11 @@ class ScrapComponent:
                     % (self.name, name)
                 )
                 sys.exit()
-        opt = ScrapOption(name, value_type, symbol=symbol)
+        opt = ScrapOption(name, value_type, symbol=symbol, info=info)
         opt.set_component(self)
         if symbol:
             self.options[symbol] = opt
         self.options[name] = opt
-
-        keys = [k for k in self.options]
-        logging.info('option keys in \'%s\' component: %s' % (self.name, keys))
 
     def set_group(self, group):
         self.group = group
@@ -104,23 +103,23 @@ class ScrapOption:
     component = None # The component that contain this scrap option.
     symbol = ''
     name = ''
+    info = ''
     value = '*'
     value_type = ValueType.STRING_COMPARISON
 
-    def __init__(self, name, value_type, symbol=None):
+    def __init__(self, name, value_type, symbol=None, info=''):
         self.symbol = symbol
         self.name = name
         self.value_type = value_type
+        self.info = info
 
     def set_component(self, component):
-        logging.info(
-            'Set \'%s\' (%s) as the option of the component \'%s\' (%s).'
-            % (self.name, id(self), component.name, id(component))
-        )
         self.component = component
 
-    # Get the string value of this scrap option.
-    def get_value(self):
+    # Get the raw string value of this scrap option. The raw
+    # value is the string value that appear in the scrap filter 
+    # untouched.
+    def raw_value(self):
         val = ''
 
         # Try to capture the value using this scrap option's symbol.
@@ -197,15 +196,22 @@ class ComponentGroup:
         for k in self.components:
             if len(k) != 1:
                 name = k
-                symbol = self.components[k].symbol
-                component = '%s (%s):\n' % (name, symbol)
+                symbol = self.get(k).symbol
+                info = self.get(k).info
+                if info != '':
+                    info = '\n' + info
+                component = '%s (%s):%s\n' % (name, symbol, info)
                 lines += component
                 for j in self.components[k].options:
                     if len(j) != 1:
                         name = j
-                        symbol = self.components[k].options[j].symbol
-                        val_type = self.components[k].options[j].value_type
-                        option = '    %s (%s) [%s]\n' % (name, symbol, val_type)
+                        symbol = self.get(k).get(j).symbol
+                        val_type = str(self.get(k).get(j).value_type)
+                        val_type = val_type[val_type.find('.') + 1:]
+                        info = self.get(k).get(j).info
+                        option =  '    %s (%s): \n' % (name, symbol)
+                        option += '        Value type : %s\n' % val_type
+                        option += '        Info       : %s\n' % info
                         lines += option
                 lines += '\n'
         return lines
@@ -223,10 +229,8 @@ class Parser:
         if f == '*':
             return None
 
-        r = r'([a-zA-Z\-]+{)?(\/[a-zA-Z\-]+)+'
+        r = r'([a-zA-Z-_]+{)?(\/[a-zA-Z-_]+)+'
         m = re.findall(r, f)
-
-        print(m)
 
         # Check if pattern is valid. The pattern is inferred to be invalid
         # if m is empty or when either position in the m[0] tuple is 
@@ -257,7 +261,7 @@ class Parser:
 #                    continue
                 temp_component = component_group.get(tuple_com)
                 opt = temp_component.get(tuple_opt)
-                opt.value = opt.get_value()
+                opt.value = opt.raw_value()
                 components.update({
                     (tuple_com, tuple_opt): opt.value
                 })
@@ -267,7 +271,7 @@ class Parser:
                                               tuple_opt):
                     continue
                 opt = temp_component.get(tuple_opt)
-                opt.value = opt.get_value()
+                opt.value = opt.raw_value()
                 components.update({
                     (temp_key, tuple_opt): opt.value
                 })
@@ -377,6 +381,10 @@ class Parser:
             x = str(x)
             expr = scrap_option.value
 
+        if scrap_option.value_type == ValueType.LIST:
+            x = scrap_option.value.split(',')
+            expr = str(x)
+            print('list expr:', expr)
         
         #
         # Use python parser to parse and compile the string.
@@ -423,6 +431,16 @@ class Parser:
                     % (com_name, opt_name, val_type)
                 )
                 return False
+        
+        if scrap_option.value_type == ValueType.LIST:
+            if not isinstance(scrap_target, str):
+                logging.error(
+                    'The scrap option %s::%s have value type %s, '\
+                    'but the scrap target is not a string.'\
+                    % (com_name, opt_name, val_type)
+                )
+                return False
+
         return True
 
     # Compute whether or not the value of the scrap option
@@ -462,6 +480,17 @@ class Parser:
                     'but the scrap option value is not a string comparison '\
                     'operation. (Value: "%s")'
                     % (com_name, opt_name, val_type, scrap_option.value)
+                )
+                return False
+
+        if scrap_option.value_type == ValueType.LIST:
+            pattern = '([a-zA-Z0-9-_ ]+)(,\s*[a-zA-Z0-9-_ ]+)*'
+            m = re.match(pattern, scrap_option.value)
+            if len(m.group(0)) != len(scrap_option.value):
+                logging.error(
+                    'The scrap option %s::%s have the value type %s, '\
+                    'but the scrap option value is not a comma separated '\
+                    'list.'
                 )
                 return False
 
