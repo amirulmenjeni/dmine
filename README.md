@@ -42,23 +42,23 @@ If you want a spider to filter out the items that it collects, use the [scrap fi
             Info       : The score of the post (i.e. upvotes/downvotes).
         subreddit (r): 
             Value type : STRING_COMPARISON
-            Info       : 
+            Info       : (No info available)
         allow-subreddit (A): 
             Value type : LIST
             Info       : Specify which subreddit(s) allowed to be scraped.
         block-subreddit (B): 
             Value type : LIST
             Info       : Specify which subreddit(s) not allowed to be scraped.
-    
+
     comment (c):
     A user submitted comment to a particular post.
         text (t): 
             Value type : STRING_COMPARISON
-            Info       : 
+            Info       : (No info available)
         score (s): 
             Value type : INT_RANGE
-            Info       : 
-    
+            Info       : (No info available)
+
 After we understood the detail of scrap filter for the reddit spider, we can run the spider with its scrap filter as shown below.
 
     $ dmine -s reddit -f "post{/title: 'fallout' in title /subreddit: subreddit == 'gaming'}"
@@ -80,7 +80,7 @@ You can learn more about scrap filter [here](https://github.com/amirulmenjeni/dm
 
 While a scrap filter is used to make a 'yes or no' selection as to which component a spider's target website should scrape, a spider input is used to pass information to the spider. What this information is used for is up to the spider's developer to decide. 
 
-To find out what are inputs available for a specfic spider (e.g. `reddit` spider), run the followig comand:
+To find out what are inputs available for a specfic spider (e.g. `reddit` spider), run the followig command:
 
     $ dmine -I reddit
     scan-subreddit (r):
