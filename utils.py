@@ -10,7 +10,8 @@ import sys
 # @param filename: The filename of the file.
 #
 # If no filename is specified, then print to stdout.
-# Otherwise, print to specified file.
+# Otherwise, print to specified file. The default output
+# format is JSON.
 def to_file(item, filename=None, file_format='json'):
  
     # Store in JSON format.
@@ -37,4 +38,3 @@ def to_file(item, filename=None, file_format='json'):
             for i in item:
                 row = ','.join(['\"' + v + '\"' for v in list(i.values())])
                 sys.stdout.write(row)
-

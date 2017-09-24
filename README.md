@@ -3,13 +3,13 @@
 - [About Dmine](https://github.com/amirulmenjeni/dmine/blob/master/README.md#about-dmine)
 - [Using Dmine](https://github.com/amirulmenjeni/dmine/blob/master/README.md#using-dmine)
 
-## About Dmine.
+## ABOUT 
 
-Dmine is webscraping tool that extract data from social media and convert the extracted data into something useful. Currently, we are working on supporting widely used social media platform around the globe; [Reddit](http://www.reddit.com), [Twitter](http://www.twitter.com) and [Facebook](http://www.facebook.com). 
+Dmine is webscraping tool that extract data from targeted websites. Currently, we are working on supporting widely used social media platform around the globe; [Reddit](http://www.reddit.com), [Twitter](http://www.twitter.com) and [Facebook](http://www.facebook.com). 
 
-## Using Dmine.
+## USAGE
 
-### Listing out available spiders.
+### LISTING OUT AVAILABLE SPIDERS
 Dmine have a collection of spiders to choose from. Each spider has its own target site(s). To view the currently available spiders, run the command
 
     $ dmine -l
@@ -20,14 +20,14 @@ Dmine have a collection of spiders to choose from. Each spider has its own targe
 You can see that from the output of the command above, `spider_1` and `spider_2` is one of the available spiders. Each line in the output represent the _name_ of each spider. The names are supposed to be unique.
 By convention, the spider name intuitively represent the site of its target. Thus, if a spider's name is `reddit`, then you can be fairly sure that the spider target [Reddit](http://www.reddit.com).
 
-### Using a spider.
+### USING A SPIDER
 
 Suppose you want to run a spider named `spider_1`. Then, you can simply run the spider my executing the
 following command.
 
     $ dmine -s spider_1
     
-### Scrap filter.
+### SCRAP FILTER
 
 If you want a spider to filter out the items that it collects, use the [scrap filter](https://github.com/amirulmenjeni/dmine/wiki/Scrap-Filter) that the spider provide. Each spider employ its own scrap filter. Therefore you shouldn't assume that any two spiders share the same scrap filter. Run the following command to find out the detail of a specific spider (e.g. reddit).
 
@@ -76,7 +76,7 @@ of names and symbols like so:
 
 You can learn more about scrap filter [here](https://github.com/amirulmenjeni/dmine/wiki/Scrap-Filter).
 
-### Spider Input
+### SPIDER INPUT
 
 While a scrap filter is used to make a 'yes or no' selection as to which component a spider's target website should scrape, a spider input is used to pass information to the spider. What this information is used for is up to the spider's developer to decide. 
 
