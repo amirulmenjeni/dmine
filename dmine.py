@@ -7,6 +7,7 @@
 import sys
 import argparse
 import logging
+import utils
 from spiders import *
 from scrap_filter import ComponentGroup
 from spider_input import SpiderInput
@@ -58,6 +59,18 @@ def main():
                         help='The verbosity of logging this program. The '\
                              'valid verbosity level is either DEBUG, INFO, '\
                              'WARNING, ERROR or CRITICAL.')
+
+    parser.add_argument('-o', '--output', default=None,
+                        metavar='<output_file>',
+                        dest='output_file',
+                        help='The file to store the scraped data.')
+
+    parser.add_argument('-w', '--format', default='json',
+                        metavar='<file_format>',
+                        choices=['json', 'csv'],
+                        dest='file_format',
+                        help='The format of the output. The supported '\
+                             'file formats are json and csv.')
 
     # Parse arguments.
     args = parser.parse_args()
@@ -135,9 +148,20 @@ def main():
                 instance.run_parsers()
 
                 # Start spider.
-                instance.start()
+                results = instance.start()
+    
+                # Write the results to a file (or stdout if the option
+                # -o is not given)
+                utils.to_file(results, args.output_file, 
+                              file_format=args.file_format)
+
         if not found:
             logging.error('No spider named \'%s\' found.' % args.spider)
+
+
+##################################################
+# Helper methods
+##################################################
 
 # Print the name of every spider created
 # (Class that inherits from DmineSpider).

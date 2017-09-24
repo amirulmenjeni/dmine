@@ -284,10 +284,8 @@ class Parser:
         opt_symb = scrap_option.symbol
         opt_name = scrap_option.name
         if re.match('\ ?%s\ ?' % opt_name, scrap_option.value):
-            print('replacing symbol')
             scrap_option.value = scrap_option.value.replace(opt_name, 'x')
         elif re.match('\ ?%s\ ?' % opt_symb, scrap_option.value):
-            print('replacing name')
             scrap_option.value = scrap_option.value.replace(opt_symb, 'x')
 
         expr = expr.replace(scrap_option.name, 'x')

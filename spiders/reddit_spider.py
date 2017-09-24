@@ -70,11 +70,21 @@ class RedditSpider(DmineSpider):
 
         spider_input.add_input(
             Input(
-                'limit', 
+                'scan-limit', 
                 InputType.INTEGER, 
                 default=None,
                 symbol='l',
                 info='The limit on how many posts will be scanned.'
+            )
+        )
+
+        spider_input.add_input(
+            Input(
+                'sections',
+                InputType.STRING,
+                default='hot,rising,new,top',
+                info='The section in which the submission appear. Valid '\
+                     'selection is hot, rising, new, or top.'
             )
         )
 
@@ -104,32 +114,46 @@ class RedditSpider(DmineSpider):
         p = self.component_group.get('post')
         counter  = 0
 
-        # The limit on the number of items to be scanned.
-        limit = self.spider_input.get('limit').val()
-        logging.info('limit: %s' % limit)
+        # Get the sections from which the post appear in each
+        # subreddit.
+        sections = self.get_sections()
+
+        for post in sections:
+            # Scraping the posts.
+            if p.get('subreddit').should_scrap(str(post.subreddit)) and\
+               p.get('score').should_scrap(str(post.score)):
+
+                yield {
+                    'title': post.title,
+                    'subreddit': str(post.subreddit),
+                    'score': str(post.score),
+                    'author': str(post.author)
+                }
+
+    def get_sections(self):
+        # Get the list of sections.
+        section_list = self.spider_input.get('sections').val().split(',')
+        section_list = [s.strip() for s in section_list]
 
         # Subreddits to be scanned.
         scan_subs = self.spider_input.get('scan-subreddit').val()
         scan_subs = '+'.join(scan_subs.split(','))
-        logging.info('scan subreddits: %s' % scan_subs)
 
-        # ListingGenerator of each sections.
-        hot_section = self.r.subreddit(scan_subs).hot(limit=limit)
-        new_section = self.r.subreddit(scan_subs).new(limit=limit)
-        rising_section = self.r.subreddit(scan_subs).rising(limit=limit)
-        top_section = self.r.subreddit(scan_subs).top(limit=limit)
-        gilded_section = self.r.subreddit(scan_subs).gilded(limit=limit)
+        # Chain the listing generators of each section
+        # into one listing generator.
+        selected_sections = None
+        if 'hot' in section_list:
+            hot_section = self.r.subreddit(scan_subs).hot(limit=None)
+            selected_sections = chain(hot_section)
+        if 'new' in section_list:
+            new_section = self.r.subreddit(scan_subs).new(limit=None)
+            selected_sections = chain(new_section)
+        if 'rising' in section_list:
+            rising_section = self.r.subreddit(scan_subs).rising(limit=None)
+            selected_sections = chain(rising_section)
+        if 'top' in section_list:
+            top_section = self.r.subreddit(scan_subs).top(limit=None)
+            selected_sections = chain(top_section)
+        return selected_sections
 
-        all_sections = chain(hot_section, new_section, rising_section,
-                             top_section, gilded_section)
-
-        for post in all_sections:
-            if p.get('subreddit').should_scrap(str(post.subreddit)) and\
-               p.get('score').should_scrap(str(post.score)):
-                counter += 1
-                print('--------------------')
-                print('ENTRY:', counter)
-                print('TITLE:', post.title)
-                print('SUBRE:', post.subreddit)
-                print('SCORE:', post.score)
 
