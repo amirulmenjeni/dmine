@@ -63,14 +63,18 @@ def main():
     parser.add_argument('-o', '--output', default=None,
                         metavar='<output_file>',
                         dest='output_file',
-                        help='The file to store the scraped data.')
+                        help='The file into which the scraped data is '\
+                             'written. If not '\
+                             'specified, then the scraped data will be '\
+                             'written into STDOUT.')
 
     parser.add_argument('-w', '--format', default='json',
                         metavar='<file_format>',
                         choices=['json', 'csv'],
                         dest='file_format',
                         help='The format of the output. The supported '\
-                             'file formats are json and csv.')
+                             'file formats are json and csv. By default, '\
+                             'output will be written in JSON format.')
 
     # Parse arguments.
     args = parser.parse_args()

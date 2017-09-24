@@ -30,6 +30,9 @@ class ScrapComponent:
     # @param name: Name of the scrap component.
     # @param symbol: Symbol of the scrap component.
     # @param info: Information about the scrap component.
+    #
+    # The symbol must be an alphabetical character, and the name
+    # must consists of more than one characters.
     def __init__(self, name, symbol=None, info=''):
         self.options = {}
 
@@ -42,18 +45,12 @@ class ScrapComponent:
                     % (self.name, name)
                 )
                 sys.exit()
-    
-        # Prevent name/symbol conflict.
-        if name in ScrapComponent.used_names:
+
+        if len(name) <= 1:
             logging.error(
-                'The name \'%s\' has already been used.'
-                % name
-            )
-            sys.exit()
-        if symbol in ScrapComponent.used_symbols:
-            logging.error(
-                'The symbol \'%s\' has already been used'
-                % symbol
+                'Scrap option name for the option %s::%s '\
+                'must consist of more than 1 characters.'
+                % (self.name, name)
             )
             sys.exit()
 
@@ -65,6 +62,15 @@ class ScrapComponent:
             ScrapComponent.used_symbols.append(self.symbol)
         ScrapComponent.used_names.append(self.name)
 
+    # @param name: Name of the scrap option.
+    # @param value_type: The value type of the scrap option.
+    #                    See ValueType class.
+    # @param symbol: The symbol used for shorthand reference of this
+    #                scrap option.
+    # @param info: Developer defined info about the scrap option.
+    #
+    # The symbol must be an alphabetical character, while the name
+    # must have more than 1 character.
     def add_option(self, name, value_type, symbol=None, info=''):
         if symbol:
             if len(symbol) != 1 or not symbol.isalpha():
@@ -74,6 +80,14 @@ class ScrapComponent:
                     % (self.name, name)
                 )
                 sys.exit()
+        if len(name) <= 1:
+            logging.error(
+                'Scrap option name for the option %s::%s '\
+                'must consist of more than 1 characters.'
+                % (self.name, name)
+            )
+            sys.exit()
+
         opt = ScrapOption(name, value_type, symbol=symbol, info=info)
         opt.set_component(self)
         if symbol:
@@ -97,6 +111,13 @@ class ScrapComponent:
 
     def contain(self, component_symbol):
         return (component_symbol in self.options)
+
+    # Should this component be scraped, based on user's
+    # scrap filter?
+    def should_scrap():
+        for k in self.options:
+            if len(k) > 1:
+                pass
 
 class ScrapOption:
 
@@ -160,6 +181,19 @@ class ComponentGroup:
         self.spider_name = spider_name
 
     def add(self, component):
+        if component.symbol in self.components:
+            loggging.error(
+                'A component with the symbol %s already exists.'
+                % component.symbol
+            )
+            sys.exit()
+        if component.name in self.components:
+            loggging.error(
+                'A component with the name %s already exists.'
+                % component.symbol
+            )
+            sys.exit()
+
         if component.symbol:
             self.components[component.symbol] = component
         self.components[component.name] = component
