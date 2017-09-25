@@ -24,7 +24,6 @@ do
         arguments=$arguments"$arg "
     fi
 done
-echo $arguments
 
 # Run dmine.
 python main.py $arguments
