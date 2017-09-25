@@ -65,11 +65,12 @@ def main():
 
     parser.add_argument('-w', '--format', default='json',
                         metavar='<file_format>',
-                        choices=['json', 'csv'],
+                        choices=['json', 'jsonl', 'csv'],
                         dest='file_format',
                         help='The format of the output. The supported '\
-                             'file formats are json and csv. By default, '\
-                             'output will be written in json format.')
+                             'file formats are JSON, JSONL, and CSV. '\
+                             'By default, output will be written in '\
+                             'JSON format.')
 
     # Parse arguments.
     args = parser.parse_args()

@@ -5,7 +5,9 @@
 
 import sys
 import logging
+import io
 import json
+import jsonlines
 import re
 import enum
 from abc import ABCMeta, abstractmethod
@@ -691,8 +693,9 @@ class Parser:
         return True
 
 class Utils:
-    # @param item: The item to append to the a file.
+    # @param item: The item (dict generator) to write to the file.
     # @param filename: The filename of the file.
+    # @param file_format: The format the data is written into the file.
     #
     # If no filename is specified, then print to stdout.
     # Otherwise, print to specified file. The default output
@@ -710,6 +713,17 @@ class Utils:
                 for i in item:
                     json_str = json.dumps(i)
                     sys.stdout.write(json_str)
+
+        # Store in JSONL format.
+        if file_format == 'jsonl':
+            if filename:
+                with jsonlines.open(filename, mode='w') as writer:
+                    for i in item:
+                        writer.write(i)
+            else:
+                for i in item:
+                    json_str = json.dumps(i)
+                    sys.stdout.write(json_str + '\n')
 
         # Store in CSV format.
         elif file_format == 'csv':
