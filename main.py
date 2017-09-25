@@ -138,17 +138,21 @@ def main():
                 instance.setup_filter(instance.component_group)
 
                 # Set up spider input.
-                instance.spider_input = InputGroup(
+                instance.input_group = InputGroup(
                                             args.spider_input, 
                                             spider_name=c.name
                                         )
-                instance.setup_input(instance.spider_input)
+                instance.setup_input(instance.input_group)
 
                 # Parse the scrap filter and spider input.
                 instance.run_parsers()
 
                 # Start spider.
                 results = instance.start()
+                if results is None:
+                    logging.warning('No data is returned from %s.start().' %
+                                    c.__name__)
+                    continue
     
                 # Write the results to a file (or stdout if the option
                 # -o is not given)
@@ -191,9 +195,9 @@ def print_input_detail(spider_name, spider_classes):
     for c in spider_classes:
         if c.name == spider_name:
             instance = c()
-            instance.spider_input = InputGroup('') # Don't need input string.
-            instance.setup_input(instance.spider_input)
-            print(instance.spider_input.detail())
+            instance.input_group = InputGroup('') # Don't need input string.
+            instance.setup_input(instance.input_group)
+            print(instance.input_group.detail())
             found = True
             break
     if not found:

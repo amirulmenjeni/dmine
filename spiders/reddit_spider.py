@@ -12,9 +12,6 @@ class RedditSpider(Spider):
     r = None # Reddit prawl instance.
     name = 'reddit'
 
-    def __init(self):
-        print('I am a spider and my name is %s.' % self.name)
-
     def setup_filter(self, component_group):
         # Add scrap components.
         component_group.add(
@@ -55,11 +52,13 @@ class RedditSpider(Spider):
 
         # Add options to the 'comment' component.
         c = component_group.get('comment')
-        c.add_option('text', ValueType.STRING_COMPARISON, symbol='t')
-        c.add_option('score', ValueType.INT_RANGE, symbol='s')
+        c.add_option('body', ValueType.STRING_COMPARISON, symbol='t',
+                     info='The comment\'s body.')
+        c.add_option('score', ValueType.INT_RANGE, symbol='s',
+                     info='The comment\'s score')
 
-    def setup_input(self, spider_input):
-        spider_input.add_input(
+    def setup_input(self, input_group):
+        input_group.add_input(
             Input(
                 'scan-subreddit', 
                 InputType.STRING, 
@@ -69,17 +68,38 @@ class RedditSpider(Spider):
             )
         )
 
-        spider_input.add_input(
+        input_group.add_input(
             Input(
                 'scan-limit', 
                 InputType.INTEGER, 
                 default=None,
                 symbol='l',
-                info='The limit on how many posts will be scanned.'
+                info='The limit on how many posts from each listings '\
+                     '(i.e. hot, rising, etc.) will be scanned.'
             )
         )
 
-        spider_input.add_input(
+        input_group.add_input(
+             Input(
+                'post-limit',
+                InputType.INTEGER,
+                default=999999,
+                info='The limit on how many posts can be collected. '\
+                     'The default is no limit.'
+            )
+        )
+
+        input_group.add_input(
+            Input(
+                'comment-limit',
+                InputType.INTEGER,
+                default=999999,
+                info='The limit on how many comments can be collected. '\
+                     'The default is no limit.'
+            )
+        )
+
+        input_group.add_input(
             Input(
                 'sections',
                 InputType.STRING,
@@ -113,46 +133,80 @@ class RedditSpider(Spider):
         # Do spidery deeds.
         ##################################################
         p = self.component_group.get('post')
+        c = self.component_group.get('comment')
         counter  = 0
 
         # Get the sections from which the post appear in each
         # subreddit.
         sections = self.get_sections()
 
-        for post in sections:
-            # Scraping the posts.
-            if p.get('subreddit').should_scrap(str(post.subreddit)) and\
-               p.get('score').should_scrap(str(post.score)):
+        post_limit = self.input_group.get('post-limit').val()
+        comment_limit = self.input_group.get('comment-limit').val()
 
-                yield {
+        post_count = 0
+        comment_count = 0
+        for section in sections:
+            for post in section:
+                # Assign each scrap options its filter target.
+                p.set_targets(**{
                     'title': post.title,
-                    'subreddit': str(post.subreddit),
-                    'score': str(post.score),
-                    'author': str(post.author)
-                }
+                    'score': post.score,
+                    'subreddit': str(post.subreddit)
+                })
 
+                # Scraping the posts.
+                if p.should_scrap():
+                    post_count += 1
+                    yield {
+                        'post_count': post_count,
+                        'post_id': post.id,
+                        'title': post.title,
+                        'subreddit': str(post.subreddit),
+                        'score': post.score,
+                        'author': str(post.author)
+                    }
+
+                # Scraping (most if not all) comments of each post.
+                post.comments.replace_more(limit=None)
+                for comment in post.comments.list():
+                    c.set_targets(**{
+                        'body': comment.body,
+                        'score': comment.score
+                    })
+
+                    if c.should_scrap():
+                        comment_count += 1
+                        yield {
+                            'comment_count': comment_count,
+                            'comment_id': comment.id,
+                            'body': comment.body,
+                            'score': str(comment.score)
+                        }
+
+    # Get which section(s) to scrape the submissions from.
     def get_sections(self):
         # Get the list of sections.
-        section_list = self.spider_input.get('sections').val().split(',')
+        section_list = self.input_group.get('sections').val().split(',')
         section_list = [s.strip() for s in section_list]
 
         # Subreddits to be scanned.
-        scan_subs = self.spider_input.get('scan-subreddit').val()
+        scan_subs = self.input_group.get('scan-subreddit').val()
         scan_subs = '+'.join(scan_subs.split(','))
+
+        limit = self.input_group.get('scan-limit').val()
 
         # Chain the listing generators of each section
         # into one listing generator.
         selected_sections = None
         if 'hot' in section_list:
-            hot_section = self.r.subreddit(scan_subs).hot(limit=None)
-            selected_sections = chain(hot_section)
+            hot_section = self.r.subreddit(scan_subs).hot(limit=limit)
+            yield hot_section
         if 'new' in section_list:
-            new_section = self.r.subreddit(scan_subs).new(limit=None)
-            selected_sections = chain(new_section)
+            new_section = self.r.subreddit(scan_subs).new(limit=limit)
+            yield new_section
         if 'rising' in section_list:
-            rising_section = self.r.subreddit(scan_subs).rising(limit=None)
-            selected_sections = chain(rising_section)
+            rising_section = self.r.subreddit(scan_subs).rising(limit=limit)
+            yield rising_section
         if 'top' in section_list:
-            top_section = self.r.subreddit(scan_subs).top(limit=None)
-            selected_sections = chain(top_section)
-        return selected_sections
+            top_section = self.r.subreddit(scan_subs).top(limit=limit)
+            yield top_section

@@ -10,11 +10,8 @@ import json
 import jsonlines
 import re
 import enum
+import parser
 from abc import ABCMeta, abstractmethod
-
-###############################################################################
-# Classes
-###############################################################################
 
 # The types of expected and valid input for each instance of an
 # Input class.
@@ -128,6 +125,8 @@ class Input:
                 )
                 sys.exit()
         if self.input_type == InputType.INTEGER:
+            if isinstance(val, int):
+                val = str(val)
             if not val.isdigit():
                 logging.error(
                     'The input type for \'%s\' is %s, but the value given '\
@@ -242,12 +241,30 @@ class ScrapComponent:
     def contain(self, component_symbol):
         return (component_symbol in self.options)
 
-    # Should this component be scraped, based on user's
-    # scrap filter?
-    def should_scrap():
+    # @param key: The name or symbol of the scrap option.
+    # @param target: The target of the scrap option to be evaluated or
+    #                compared with user's scap option value.
+    def set_target(self, key, target):
+        opt = self.get(key)
+        opt.target = value
+
+    # Same as set_target(self, key, target), but allow for multiple
+    # assignment of target to the scrap options. The keywords of
+    # **kwargs are the name/symbol of the scrap option, and its
+    # values are its targets.
+    def set_targets(self, **kwargs):
+        for k in kwargs:
+            opt = self.get(k)
+            opt.target = kwargs[k]
+
+    # Returns False if at least one of this scrap component's option
+    # is undesirable. Otherwise, return True. That is, if all of the
+    # scrap options meet its requirement, return True.
+    def should_scrap(self):
         for k in self.options:
-            if len(k) > 1:
-                pass
+            if not self.options[k].should_scrap():
+                return False
+        return True
 
 class ScrapOption:
 
@@ -255,6 +272,7 @@ class ScrapOption:
     symbol = ''
     name = ''
     info = ''
+    target = ''
     value = '*'
     value_type = ValueType.STRING_COMPARISON
 
@@ -263,6 +281,7 @@ class ScrapOption:
         self.name = name
         self.value_type = value_type
         self.info = info
+        self.target = ''
 
     def set_component(self, component):
         self.component = component
@@ -292,15 +311,22 @@ class ScrapOption:
                 raise
     
         return val.strip()
+
+    def set_target(self, target):
+        self.target = target
     
-    # @param item: The scraped item of type string.
-    def should_scrap(self, item):
+    # @param target: The scraped target of type string.
+    def should_scrap(self, target=None):
         # The default is no filter.
         if self.value == '*': 
             return True
-        out = Parser.compile(self, item)
+
+        if target:
+            out = Parser.compile(self, target)
+        else:
+            out = Parser.compile(self, self.target)
         return out
-    
+
 class ComponentGroup:
     components = {}
     scrap_filter = ''
@@ -384,6 +410,7 @@ class ComponentGroup:
 
 class Parser:
     # @param component_group: The object of type ComponentGroup.
+    #
     # This method parse the scrap filter string of the component
     # group and is needed to be called right after all components
     # and their options has been initialized in order for every
@@ -423,9 +450,6 @@ class Parser:
                 temp_component = component_group.get(tuple_com)
                 opt = temp_component.get(tuple_opt)
                 opt.value = opt.raw_value()
-                components.update({
-                    (tuple_com, tuple_opt): opt.value
-                })
                 temp_key = tuple_com
             else:
                 if not Parser.is_option_exist(component_group, temp_key, 
@@ -433,10 +457,6 @@ class Parser:
                     continue
                 opt = temp_component.get(tuple_opt)
                 opt.value = opt.raw_value()
-                components.update({
-                    (temp_key, tuple_opt): opt.value
-                })
-        logging.info('components: %s' % components)
 
     # Populate a spider input with values as extracted
     # from the spider input string it's given.
@@ -539,7 +559,6 @@ class Parser:
         if scrap_option.value_type == ValueType.LIST:
             x = scrap_option.value.split(',')
             expr = str(x)
-            print('list expr:', expr)
         
         #
         # Use python parser to parse and compile the string.
@@ -701,7 +720,7 @@ class Utils:
     # Otherwise, print to specified file. The default output
     # format is JSON.
     def to_file(item, filename=None, file_format='json'):
-     
+    
         # Store in JSON format.
         if file_format == 'json':
             if filename:
@@ -788,4 +807,4 @@ class Spider:
     # This shouldn't be overwritten.
     def run_parsers(self):
         Parser.parse_scrap_filter(self.component_group)
-        Parser.parse_input_string(self.spider_input)
+        Parser.parse_input_string(self.input_group)
