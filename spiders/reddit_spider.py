@@ -1,18 +1,19 @@
 #
-# Author(s): Amirul Menjeni (amirulmenjeni@gmail.com
+# Author(s): Amirul Menjeni (amirulmenjeni@gmail.com)
 #
 
 import sys
 import praw
 import logging
+from dmine import Spider, ScrapComponent, ValueType, Input, InputType
 from itertools import chain
-from dmine_spider import DmineSpider
-from scrap_filter import ScrapComponent, ValueType
-from spider_input import Input, SpiderInput, InputType, Parser
 
-class RedditSpider(DmineSpider):
+class RedditSpider(Spider):
     r = None # Reddit prawl instance.
     name = 'reddit'
+
+    def __init(self):
+        print('I am a spider and my name is %s.' % self.name)
 
     def setup_filter(self, component_group):
         # Add scrap components.
@@ -155,5 +156,3 @@ class RedditSpider(DmineSpider):
             top_section = self.r.subreddit(scan_subs).top(limit=None)
             selected_sections = chain(top_section)
         return selected_sections
-
-
