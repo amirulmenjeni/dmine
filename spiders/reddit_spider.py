@@ -5,7 +5,7 @@
 import sys
 import praw
 import logging
-from dmine import Spider, ScrapComponent, ValueType, Input, InputType, Item,\
+from dmine import Spider, ScrapComponent, ValueType, Input, InputType,\
                   ComponentLoader
 from itertools import chain
 
@@ -143,9 +143,6 @@ class RedditSpider(Spider):
 
         post_limit = inp.get('post-limit').val()
         comment_limit = inp.get('comment-limit').val()
-
-        # Item.
-        item = Item()
 
         post_count = 0
         comment_count = 0
