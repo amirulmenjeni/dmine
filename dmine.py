@@ -3,9 +3,10 @@
 # Dmine module.
 # 
 
+import os
 import sys
 import logging
-import io
+import time
 import json
 import jsonlines
 import re
@@ -125,7 +126,7 @@ class Input:
                 )
                 sys.exit()
         if self.input_type == InputType.INTEGER:
-            if isinstance(val, int):
+            if isinstance(val, int): # Integer input convert to str.
                 val = str(val)
             if not val.isdigit():
                 logging.error(
@@ -151,10 +152,6 @@ class ScrapComponent:
     symbol = ''
     name = ''
     info = ''
-
-    # Used name and symbols, kept record to prevent conflict.
-    used_names = []
-    used_symbols = []
 
     # @param name: Name of the scrap component.
     # @param symbol: Symbol of the scrap component.
@@ -186,10 +183,6 @@ class ScrapComponent:
         self.symbol = symbol
         self.name = name
         self.info = info
-
-        if self.symbol:
-            ScrapComponent.used_symbols.append(self.symbol)
-        ScrapComponent.used_names.append(self.name)
 
     # @param name: Name of the scrap option.
     # @param value_type: The value type of the scrap option.
@@ -238,8 +231,8 @@ class ScrapComponent:
             )
             sys.exit()
 
-    def contain(self, component_symbol):
-        return (component_symbol in self.options)
+    def contain(self, key):
+        return (key in self.options)
 
     # @param key: The name or symbol of the scrap option.
     # @param target: The target of the scrap option to be evaluated or
@@ -589,6 +582,8 @@ class Parser:
             return Parser.validate_int_range(scrap_option, scrap_target)
 
         if scrap_option.value_type == ValueType.INT_RANGE:
+            if isinstance(scrap_target, int):
+                scrap_target = str(scrap_target)
             if not scrap_target.isdigit():
                 logging.error(
                     'The scrap option %s::%s have value type %s, '
@@ -712,6 +707,7 @@ class Parser:
         return True
 
 class Utils:
+
     # @param item: The item (dict generator) to write to the file.
     # @param filename: The filename of the file.
     # @param file_format: The format the data is written into the file.
@@ -719,30 +715,43 @@ class Utils:
     # If no filename is specified, then print to stdout.
     # Otherwise, print to specified file. The default output
     # format is JSON.
+    #
+    # If the contents of the generator `results` detected
+    # to be an instance of `ComponentLoader`, then this method
+    # will automatically collect the component loader's data
+    # to be dumped as the chosen data format.
     def to_file(item, filename=None, file_format='json'):
-    
+ 
         # Store in JSON format.
         if file_format == 'json':
             if filename:
                 with open(filename, 'w') as f:
                     for i in item:
-                        json_str = json.dumps(i)
-                        f.write(json_str)
+                        if isinstance(i, ComponentLoader):
+                            i = i.data
+                        s = json.dumps(i)
+                        f.write(s)
             else:
                 for i in item:
-                    json_str = json.dumps(i)
-                    sys.stdout.write(json_str)
+                    if isinstance(i, ComponentLoader):
+                        i = i.data
+                    s = json.dumps(i)
+                    sys.stdout.write(s)
 
         # Store in JSONL format.
         if file_format == 'jsonl':
             if filename:
-                with jsonlines.open(filename, mode='w') as writer:
+                with jsonlines.open(filename, mode='w') as w:
                     for i in item:
-                        writer.write(i)
+                        if isinstance(i, ComponentLoader):
+                            i = i.data
+                        w.write(i)
             else:
                 for i in item:
-                    json_str = json.dumps(i)
-                    sys.stdout.write(json_str + '\n')
+                    if isinstance(i, ComponentLoader):
+                        i = i.data
+                    s = json.dumps(i)
+                    sys.stdout.write(s + '\n')
 
         # Store in CSV format.
         elif file_format == 'csv':
@@ -750,19 +759,55 @@ class Utils:
                 with open(filename, 'w') as f:
                     f.write(keys)
                     for i in item:
+                        if isinstance(i, ComponentLoader):
+                            i = i.data
                         row = ','.join(list(i.values()))
                         f.write(row)
             else:
                 for i in item:
+                    if isinstance(i, ComponentLoader):
+                        i = i.data
                     row = ','.join(['\"' + v + '\"' for v in list(i.values())])
                     sys.stdout.write(row)
+
+
+    # @param component_loader: A component loader generator.
+    # @param out_dir: The directory where the output files will be saved at.
+    # @param file_format: The format in which all the output files will be
+    #                     written as.
+    #
+    # This method takes in the `component_loader` generator and
+    # store each data of the component loader into a file named
+    # after the component loader's name. Thus, if the component
+    # loader's name is `my_component_name`, then data in that
+    # component loader will be saved in the file `my_component_name.json`
+    # (assuming the file format chosen is json). The files are stored
+    # in the directory `out_dir`.
+    def load_components(component_loader, out_dir, file_format='json'):
+     
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        path = os.path.realpath(out_dir)
+
+        for c in component_loader:
+            filename = c.name + '.' + file_format
+            data = c.data
+            full_path = path + '/' + filename
+
+            if file_format == 'json':
+                with open(full_path, 'a') as f:
+                    s = json.dumps(data)
+                    f.write(s)
+
+            elif file_format == 'jsonl':
+                with open(full_path, 'a') as f:
+                    s = json.dumps(data)
+                    f.write(s + '\n')
 
 # This is an abstract class. All spider that runs on dmine should
 # inherit this class.
 class Spider:
     __metaclass__ = ABCMeta 
-    component_group = None
-    input_group = None
     name = ''
     args = None
 
@@ -791,20 +836,41 @@ class Spider:
     # This method must be defined by the child classes
     # to define their scrap filter component group.
     @abstractmethod
-    def setup_filter(component_group):
+    def setup_filter(self, component_group):
         # TODO
         # Overwritten by inheritor. 
         # Spider dev define his scrap filter here.
         pass
 
     @abstractmethod
-    def setup_input(input_group):
+    def setup_input(self, input_group):
         # TODO
         # Overwritten by inheritor.
         # Spider dev define his spider input here.
         pass
-    
-    # This shouldn't be overwritten.
-    def run_parsers(self):
-        Parser.parse_scrap_filter(self.component_group)
-        Parser.parse_input_string(self.input_group)
+
+    @abstractmethod
+    def start(self, component_group, input_group):
+        # TODO
+        # Spider do job.
+        pass
+
+class ComponentLoader:
+
+    name = ''
+    data = {}
+    names = []
+
+    def __init__(self, name, data):
+        self.name = name
+        self.data = data
+
+        ComponentLoader.names.append(name)
+
+    def set_data(self, data):
+        if not isinstance(data, dict):
+            logging.error('Data is expected to be of type \'int\' but '
+                          '\'%s\' received.' 
+                          % (dict.__name__, int.__name__))
+            sys.exit()
+        self.data = data

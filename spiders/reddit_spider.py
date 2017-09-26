@@ -5,7 +5,8 @@
 import sys
 import praw
 import logging
-from dmine import Spider, ScrapComponent, ValueType, Input, InputType
+from dmine import Spider, ScrapComponent, ValueType, Input, InputType, Item,\
+                  ComponentLoader
 from itertools import chain
 
 class RedditSpider(Spider):
@@ -109,7 +110,7 @@ class RedditSpider(Spider):
             )
         )
 
-    def start(self):
+    def start(self, com, inp):
         ##################################################
         # Initialize PRAW
         ##################################################
@@ -132,16 +133,19 @@ class RedditSpider(Spider):
         ##################################################
         # Do spidery deeds.
         ##################################################
-        p = self.component_group.get('post')
-        c = self.component_group.get('comment')
+        p = com.get('post')
+        c = com.get('comment')
         counter  = 0
 
         # Get the sections from which the post appear in each
         # subreddit.
-        sections = self.get_sections()
+        sections = self.get_sections(inp)
 
-        post_limit = self.input_group.get('post-limit').val()
-        comment_limit = self.input_group.get('comment-limit').val()
+        post_limit = inp.get('post-limit').val()
+        comment_limit = inp.get('comment-limit').val()
+
+        # Item.
+        item = Item()
 
         post_count = 0
         comment_count = 0
@@ -154,20 +158,20 @@ class RedditSpider(Spider):
                     'subreddit': str(post.subreddit)
                 })
 
-                # Scraping the posts.
+                # Scrape the post if it pass the filter.
                 if p.should_scrap():
                     post_count += 1
-                    yield {
+                    yield ComponentLoader('post', {
                         'post_count': post_count,
                         'post_id': post.id,
                         'title': post.title,
                         'subreddit': str(post.subreddit),
                         'score': post.score,
                         'author': str(post.author)
-                    }
+                    })
 
                 # Scraping (most if not all) comments of each post.
-                post.comments.replace_more(limit=None)
+                post.comments.replace_more(limit=0)
                 for comment in post.comments.list():
                     c.set_targets(**{
                         'body': comment.body,
@@ -176,24 +180,26 @@ class RedditSpider(Spider):
 
                     if c.should_scrap():
                         comment_count += 1
-                        yield {
+                        yield ComponentLoader('comment', {
                             'comment_count': comment_count,
+                            'post_id': post.id,
                             'comment_id': comment.id,
+                            'author': str(comment.author),
                             'body': comment.body,
                             'score': str(comment.score)
-                        }
+                        })
 
     # Get which section(s) to scrape the submissions from.
-    def get_sections(self):
+    def get_sections(self, inp):
         # Get the list of sections.
-        section_list = self.input_group.get('sections').val().split(',')
+        section_list = inp.get('sections').val().split(',')
         section_list = [s.strip() for s in section_list]
 
         # Subreddits to be scanned.
-        scan_subs = self.input_group.get('scan-subreddit').val()
+        scan_subs = inp.get('scan-subreddit').val()
         scan_subs = '+'.join(scan_subs.split(','))
 
-        limit = self.input_group.get('scan-limit').val()
+        limit = inp.get('scan-limit').val()
 
         # Chain the listing generators of each section
         # into one listing generator.

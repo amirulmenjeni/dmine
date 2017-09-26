@@ -3,9 +3,10 @@
 # This is module is the starting point of dmine.
 
 import sys
+import time
 import argparse
 import logging
-from dmine import Utils, Spider, ComponentGroup, InputGroup
+from dmine import Utils, Spider, ComponentGroup, InputGroup, Parser
 from spiders import *
 
 def main():
@@ -55,13 +56,6 @@ def main():
                              'valid verbosity level is either DEBUG, INFO, '\
                              'WARNING, ERROR or CRITICAL.')
 
-    parser.add_argument('-o', '--output', default=None,
-                        metavar='<output_file>',
-                        dest='output_file',
-                        help='The file into which the scraped data is '\
-                             'written. If not '\
-                             'specified, then the scraped data will be '\
-                             'written into STDOUT.')
 
     parser.add_argument('-w', '--format', default='json',
                         metavar='<file_format>',
@@ -71,6 +65,30 @@ def main():
                              'file formats are JSON, JSONL, and CSV. '\
                              'By default, output will be written in '\
                              'JSON format.')
+
+    # Mutually exclusive args in relation to the issue
+    # of output.
+    output_group = parser.add_mutually_exclusive_group()
+    output_group.add_argument(
+        '-o', '--output', default=None,
+        metavar='<output_file>',
+        dest='output_file',
+        help='The file into which the scraped data is '\
+             'written. If not '\
+             'specified, then the scraped data will be '\
+             'written into STDOUT.'
+    )
+
+    output_group.add_argument(
+        '-O', '--output-components', default=None,
+        metavar='<directory_path>',
+        dest='output_dir',
+        help='The directory path where the files '\
+             'containing the scraped data are saved.  '\
+             'The file names are automatically named '\
+             'with respect to the name of the component '\
+             'the data belongs to.'
+    )
 
     # Parse arguments.
     args = parser.parse_args()
@@ -111,12 +129,12 @@ def main():
     # Get list of classes that inherit from Spider class.
     spider_classes = Spider.__subclasses__()
 
-    # Show the scrap filter detail of a given spider.
+    # Show the scrap filter detail of a given spider and exit.
     if args.filter_detail:
         print_filter_detail(args.filter_detail, spider_classes) 
         sys.exit()
 
-    # Show the input detail of a given spider.
+    # Show the input detail of a given spider and exit.
     if args.input_detail:
         print_input_detail(args.input_detail, spider_classes)
         sys.exit()
@@ -127,42 +145,53 @@ def main():
         for c in spider_classes:
             if c.name == args.spider:
                 found = True
+
                 # Create instance.
                 instance = c()
 
                 # Set up component group.
-                instance.component_group = ComponentGroup(
-                                               args.filter, 
-                                               spider_name=c.name
-                                           )
-                instance.setup_filter(instance.component_group)
+                component_group = ComponentGroup(
+                                      args.filter, 
+                                      spider_name=c.name
+                                  )
+                instance.setup_filter(component_group)
 
-                # Set up spider input.
-                instance.input_group = InputGroup(
-                                            args.spider_input, 
-                                            spider_name=c.name
-                                        )
-                instance.setup_input(instance.input_group)
+                # Set up input group.
+                input_group = InputGroup(
+                                args.spider_input, 
+                                spider_name=c.name
+                              )
+                instance.setup_input(input_group)
 
-                # Parse the scrap filter and spider input.
-                instance.run_parsers()
+                # Parse the component group and input group.
+                Parser.parse_scrap_filter(component_group)
+                Parser.parse_input_string(input_group)
 
                 # Start spider.
-                results = instance.start()
+                results = instance.start(component_group, input_group)
                 if results is None:
-                    logging.warning('No data is returned from %s.start().' %
+                    logging.warning('No data is generated from %s.start().' %
                                     c.__name__)
                     continue
-    
-                # Write the results to a file (or stdout if the option
-                # -o is not given)
-                Utils.to_file(results, args.output_file, 
-                              file_format=args.file_format)
+
+                # If -O is used, then write the components into its respective
+                # files.
+                if args.output_dir:
+                    Utils.load_components(results,
+                                          args.output_dir,
+                                          file_format=args.file_format)
+                else:
+                    # Write the results to a file (or stdout if the option
+                    # -o is not given).
+                    Utils.to_file(results, args.output_file, 
+                                  file_format=args.file_format)
 
         if not found:
             logging.error('Unable to run spider. '\
                           'No spider named \'%s\' found.' % args.spider)
 
+def report():
+    pass
 
 ##################################################
 # Helper methods
@@ -219,4 +248,11 @@ def get_log_level(log_level):
 
 # Main function.
 if __name__ == '__main__':
-    main() 
+    try:
+        main() 
+    except KeyboardInterrupt:
+        print('\nProgram terminated by user.')
+        sys.exit(0)
+    finally:
+        report()
+
