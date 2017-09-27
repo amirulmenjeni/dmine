@@ -746,6 +746,16 @@ class Utils:
                 row = ','.join(['\"' + v + '\"' for v in list(data.values())])
                 sys.stdout.write(row)
 
+    # @param component_loader: A component loader object.
+    # @param out_dir: The directory location in which to put the
+    #                 written files for each component.
+    # @param file_format: The format in which the data is stored.
+    #
+    # If the path `out_dir` doesn't exists, create the directory path
+    # and store the data file for each scraped components to `out_dir`.
+    # The name of each file should have a basename corresponding
+    # to `component_loader.name`, and its extension should be
+    # `file_format`.
     def component_loader_to_file(\
             component_loader, out_dir, file_format='json'\
         ):

@@ -70,7 +70,7 @@ def main():
                              'JSON format.')
 
     parser.add_argument('-t', '--timeout', default=math.inf,
-                        type=int,
+                        type=arg_timeout,
                         metavar='<duration>',
                         dest='timeout',
                         help='The time taken before a spider will be '\
@@ -174,7 +174,6 @@ def main():
 #
 # Spider running on its thread.
 def run_spider(instance, args, stop_event):
-
     timeout = time.time() + args.timeout
 
     # Set up component group.
@@ -209,10 +208,14 @@ def run_spider(instance, args, stop_event):
     # If the item in the iteration is a ComponentLoader,
     # then obtain the ComponentLoader's data (this is because
     # some spiders yield ComponentLoader object instead of dict object).
+    #
+    # The iteration stops when there's nothing more to iterate or when
+    # a timeout forces it to stop.
     t0 = time.time()
     for r in results:
         if time.time() > timeout:
             break
+
         if isinstance(r, ComponentLoader):
             data = r.data
 
@@ -223,6 +226,62 @@ def run_spider(instance, args, stop_event):
         else:
             Utils.dict_to_file(data, args.output_file, 
                           file_format=args.file_format)
+
+
+##################################################
+# Args methods
+##################################################
+
+# @param string: The string obtained from argparse.
+#
+# The string is expected to be integer of pattern
+# s, m:s, h:m:s, or d:h:m:s where s, m, h, d are integers,
+# representing seconds, minutes, hours and days respectively.
+def arg_timeout(string):
+    times = string.split(':')
+
+    if len(times) > 4:
+        msg = 'The time format should be in S, M:S, H:M:S, or '\
+              'D:H:M:S only, '\
+              'where S, M, H, and D represents seconds, minutes, hours, '\
+              'and days respectively.'
+        raise argparse.ArgumentTypeError(msg)
+
+
+    # Check if each time component (s, m, h, d) is digit.
+    for t in times:
+        if not t.isdigit():
+            msg = '\'%s\' in \'%s\' is not a digit.' % (t, string)
+            raise argparse.ArgumentTypeError(msg)
+
+    # Check if each time component's value is within its
+    # expected range.
+    c = 0
+    for t in reversed(times):
+        valid = {
+            0: lambda x: 0 < x < 60,    # seconds
+            1: lambda x: 0 < x < 60,    # minutes
+            2: lambda x: 0 < x < 24,    # hours
+            3: lambda x: 0 < x          # days
+        }
+        if not valid[c](int(t)):
+            msg = 'Invalid time format: \'%s\'' % string 
+            raise argparse.ArgumentTypeError(msg)
+        c += 1
+
+    time_list = []
+    for t in reversed(times):
+        time_list.append(int(t))
+    
+    convert = {
+        0: 1,             
+        1: 60,         # A minute to seconds
+        2: 3600,       # An hour to seconds
+        3: 86400       # A day to seconds
+    }
+    
+    # Return the time in seconds.
+    return sum([time_list[i] * convert[i] for i in range(len(time_list))])
 
 ##################################################
 # Helper methods
