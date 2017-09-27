@@ -5,8 +5,12 @@
 import sys
 import time
 import argparse
+import threading
+import time
 import logging
-from dmine import Utils, Spider, ComponentGroup, InputGroup, Parser
+import math
+from dmine import Utils, Spider, ComponentGroup, InputGroup, Parser,\
+                  ComponentLoader, Reporter
 from spiders import *
 
 def main():
@@ -56,7 +60,6 @@ def main():
                              'valid verbosity level is either DEBUG, INFO, '\
                              'WARNING, ERROR or CRITICAL.')
 
-
     parser.add_argument('-w', '--format', default='json',
                         metavar='<file_format>',
                         choices=['json', 'jsonl', 'csv'],
@@ -65,6 +68,15 @@ def main():
                              'file formats are JSON, JSONL, and CSV. '\
                              'By default, output will be written in '\
                              'JSON format.')
+
+    parser.add_argument('-t', '--timeout', default=math.inf,
+                        type=int,
+                        metavar='<duration>',
+                        dest='timeout',
+                        help='The time taken before a spider will be '\
+                             'pre-empted to halt. By default, spider '\
+                             'will run indefinitely or when it is '\
+                             'interrupted by the user.')
 
     # Mutually exclusive args in relation to the issue
     # of output.
@@ -145,53 +157,72 @@ def main():
         for c in spider_classes:
             if c.name == args.spider:
                 found = True
-
-                # Create instance.
-                instance = c()
-
-                # Set up component group.
-                component_group = ComponentGroup(
-                                      args.filter, 
-                                      spider_name=c.name
-                                  )
-                instance.setup_filter(component_group)
-
-                # Set up input group.
-                input_group = InputGroup(
-                                args.spider_input, 
-                                spider_name=c.name
-                              )
-                instance.setup_input(input_group)
-
-                # Parse the component group and input group.
-                Parser.parse_scrap_filter(component_group)
-                Parser.parse_input_string(input_group)
-
-                # Start spider.
-                results = instance.start(component_group, input_group)
-                if results is None:
-                    logging.warning('No data is generated from %s.start().' %
-                                    c.__name__)
-                    continue
-
-                # If -O is used, then write the components into its respective
-                # files.
-                if args.output_dir:
-                    Utils.load_components(results,
-                                          args.output_dir,
-                                          file_format=args.file_format)
-                else:
-                    # Write the results to a file (or stdout if the option
-                    # -o is not given).
-                    Utils.to_file(results, args.output_file, 
-                                  file_format=args.file_format)
-
+                stop_event = threading.Event()
+                spider_thread = threading.Thread(
+                            target=run_spider,
+                            args=(c(), args, stop_event),
+                        )
+                spider_thread.start()
+                
         if not found:
             logging.error('Unable to run spider. '\
                           'No spider named \'%s\' found.' % args.spider)
 
-def report():
-    pass
+
+# @param instance: An instance of a Spider class.
+# @param args: Parsed argparse object.
+#
+# Spider running on its thread.
+def run_spider(instance, args, stop_event):
+
+    timeout = time.time() + args.timeout
+
+    # Set up component group.
+    component_group = ComponentGroup(
+                          args.filter, 
+                          spider_name=instance.name
+                      )
+    instance.setup_filter(component_group)
+
+    # Set up input group.
+    input_group = InputGroup(
+                    args.spider_input, 
+                    spider_name=instance.name
+                  )
+    instance.setup_input(input_group)
+
+    # Parse the component group and input group.
+    Parser.parse_scrap_filter(component_group)
+    Parser.parse_input_string(input_group)
+
+    # Start spider.
+    results = instance.start(component_group, input_group)
+
+    if results is None:
+        logging.warning('No data is generated from %s.start().' %
+                        type(instance).__name__)
+
+    # Iterate of over the results generator.
+    # If a timer is used, then stop the iteration when
+    # timeout.
+    #
+    # If the item in the iteration is a ComponentLoader,
+    # then obtain the ComponentLoader's data (this is because
+    # some spiders yield ComponentLoader object instead of dict object).
+    t0 = time.time()
+    for r in results:
+        if time.time() > timeout:
+            break
+        if isinstance(r, ComponentLoader):
+            data = r.data
+
+        if args.output_dir:
+            Utils.component_loader_to_file(
+                r, args.output_dir, file_format=args.file_format
+            )
+        else:
+            Utils.dict_to_file(data, args.output_file, 
+                          file_format=args.file_format)
 
 ##################################################
 # Helper methods
@@ -253,6 +284,4 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print('\nProgram terminated by user.')
         sys.exit(0)
-    finally:
-        report()
 

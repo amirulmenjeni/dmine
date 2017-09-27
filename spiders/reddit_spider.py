@@ -156,7 +156,7 @@ class RedditSpider(Spider):
                 })
 
                 # Scrape the post if it pass the filter.
-                if p.should_scrap():
+                if post_count < post_limit and  p.should_scrap():
                     post_count += 1
                     yield ComponentLoader('post', {
                         'post_count': post_count,
@@ -175,7 +175,7 @@ class RedditSpider(Spider):
                         'score': comment.score
                     })
 
-                    if c.should_scrap():
+                    if comment_count < comment_limit and c.should_scrap():
                         comment_count += 1
                         yield ComponentLoader('comment', {
                             'comment_count': comment_count,

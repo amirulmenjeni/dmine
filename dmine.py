@@ -708,101 +708,64 @@ class Parser:
 
 class Utils:
 
-    # @param item: The item (dict generator) to write to the file.
+    # @param data: The dict to write to the file.
     # @param filename: The filename of the file.
     # @param file_format: The format the data is written into the file.
     #
     # If no filename is specified, then print to stdout.
     # Otherwise, print to specified file. The default output
     # format is JSON.
-    #
-    # If the contents of the generator `results` detected
-    # to be an instance of `ComponentLoader`, then this method
-    # will automatically collect the component loader's data
-    # to be dumped as the chosen data format.
-    def to_file(item, filename=None, file_format='json'):
- 
+    def dict_to_file(data, filename=None, file_format='json'):
+
         # Store in JSON format.
         if file_format == 'json':
             if filename:
-                with open(filename, 'w') as f:
-                    for i in item:
-                        if isinstance(i, ComponentLoader):
-                            i = i.data
-                        s = json.dumps(i)
-                        f.write(s)
+                with open(filename, 'a') as f:
+                    s = json.dumps(data)
+                    f.write(s)
             else:
-                for i in item:
-                    if isinstance(i, ComponentLoader):
-                        i = i.data
-                    s = json.dumps(i)
-                    sys.stdout.write(s)
+                s = json.dumps(data)
+                sys.stdout.write(s)
 
         # Store in JSONL format.
         if file_format == 'jsonl':
             if filename:
-                with jsonlines.open(filename, mode='w') as w:
-                    for i in item:
-                        if isinstance(i, ComponentLoader):
-                            i = i.data
-                        w.write(i)
+                with jsonlines.open(filename, mode='a') as w:
+                    w.write(data)
             else:
-                for i in item:
-                    if isinstance(i, ComponentLoader):
-                        i = i.data
-                    s = json.dumps(i)
-                    sys.stdout.write(s + '\n')
+                s = json.dumps(data)
+                sys.stdout.write(s + '\n')
 
         # Store in CSV format.
         elif file_format == 'csv':
             if filename:
-                with open(filename, 'w') as f:
-                    f.write(keys)
-                    for i in item:
-                        if isinstance(i, ComponentLoader):
-                            i = i.data
-                        row = ','.join(list(i.values()))
-                        f.write(row)
+                with open(filename, 'a') as f:
+                    row = ','.join(list(data.values()))
+                    f.write(row)
             else:
-                for i in item:
-                    if isinstance(i, ComponentLoader):
-                        i = i.data
-                    row = ','.join(['\"' + v + '\"' for v in list(i.values())])
-                    sys.stdout.write(row)
+                row = ','.join(['\"' + v + '\"' for v in list(data.values())])
+                sys.stdout.write(row)
 
-
-    # @param component_loader: A component loader generator.
-    # @param out_dir: The directory where the output files will be saved at.
-    # @param file_format: The format in which all the output files will be
-    #                     written as.
-    #
-    # This method takes in the `component_loader` generator and
-    # store each data of the component loader into a file named
-    # after the component loader's name. Thus, if the component
-    # loader's name is `my_component_name`, then data in that
-    # component loader will be saved in the file `my_component_name.json`
-    # (assuming the file format chosen is json). The files are stored
-    # in the directory `out_dir`.
-    def load_components(component_loader, out_dir, file_format='json'):
-     
+    def component_loader_to_file(\
+            component_loader, out_dir, file_format='json'\
+        ):
+        
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
         path = os.path.realpath(out_dir)
 
-        for c in component_loader:
-            filename = c.name + '.' + file_format
-            data = c.data
-            full_path = path + '/' + filename
+        file_path = path + '/' + component_loader.name
+        data = component_loader.data
+        
+        if file_format == 'json':
+            with open(file_path, 'a') as f:
+                s = json.dumps(data)
+                f.write(s)
 
-            if file_format == 'json':
-                with open(full_path, 'a') as f:
-                    s = json.dumps(data)
-                    f.write(s)
-
-            elif file_format == 'jsonl':
-                with open(full_path, 'a') as f:
-                    s = json.dumps(data)
-                    f.write(s + '\n')
+        elif file_format == 'jsonl':
+            with open(file_path, 'a') as f:
+                s = json.dumps(data)
+                f.write(s + '\n')
 
 # This is an abstract class. All spider that runs on dmine should
 # inherit this class.
@@ -855,6 +818,17 @@ class Spider:
         # Spider do job.
         pass
 
+    # @param timer_sec: Time in the given unit. By default, `time_sec`
+    #                   is interpreted in seconds.
+    # @param unit: The unit for the time `timer_sec`.
+    #
+    # Terminate running the spider when the spider
+    # has run for `time` unit.
+    def timer(self, time, unit='s'):
+        if unit not in ['s', 'm', 'h']:
+            logging.error('Invalid time unit: %s.' % unit)
+            sys.exit()
+
 class ComponentLoader:
 
     name = ''
@@ -864,7 +838,6 @@ class ComponentLoader:
     def __init__(self, name, data):
         self.name = name
         self.data = data
-
         ComponentLoader.names.append(name)
 
     def set_data(self, data):
@@ -874,3 +847,15 @@ class ComponentLoader:
                           % (dict.__name__, int.__name__))
             sys.exit()
         self.data = data
+
+class Reporter:
+    spiders = {}
+    generals = {}
+
+    # Report spider specific status.
+    def spider(spider, item, value):
+        Reporter.spiders[spider] = {item: value}
+       
+    # Report general status.
+    def general(item, value):
+        Reporter.general[item] = value
