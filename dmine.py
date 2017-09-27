@@ -754,7 +754,7 @@ class Utils:
             os.makedirs(out_dir)
         path = os.path.realpath(out_dir)
 
-        file_path = path + '/' + component_loader.name
+        file_path = path + '/' + component_loader.name + '.' + file_format
         data = component_loader.data
         
         if file_format == 'json':
