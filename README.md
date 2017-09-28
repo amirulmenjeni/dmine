@@ -28,7 +28,8 @@ intuitively represent the site of its target.
 
 ### USING A SPIDER
 
-Suppose you want to run a spider named `spider_1`. Then, you can simply run the spider my executing the
+Suppose you want to run a spider named `spider_1`. 
+Then, you can simply run the spider my executing the
 following command.
 
     $ dmine -s spider_1
@@ -79,10 +80,13 @@ As you may have expected, the scrap filter above will only take posts with
 the word `kitten` in the title, with positive score. Another compact way
 of writing the above filter is like so:
 
-    $ dmine -s reddit -f "p{/t:'fallout' in x/s:x == 'gaming'}"
+    $ dmine -s reddit -f "p{/t:'kitten' in x/s:x > 0}"
 
 Note that we use symbols rather than the names of the respective scrap 
 components and options.
+
+Any scrap option not specified in the scrap filter `-f` argument will be
+assumed to be `True`.
 
 You can learn more about scrap filter 
 [here](https://github.com/amirulmenjeni/dmine/wiki/Scrap-Filter).
@@ -101,23 +105,33 @@ To find out what are inputs available for a specfic spider
     scan-subreddit (r):
         Input type    : STRING
         Default value : all
-        Info          : A comma separated list of subreddits to be scanned.
-    limit (l):
+        Info          : A whitespace separated list of subreddits to be
+                        scanned. By default, r/all will be scanned.
+    skip-comments (l):
+        Input type    : BOOLEAN
+        Default value : False
+        Info          : Skip comments entirely. This means the spider will
+                        scan posts or submissions, but its comments.
+
+    post-limit (No symbol):
         Input type    : INTEGER
-        Default value : None
-        Info          : The limit on how many posts will be scanned.
+        Default value : 999999
+        Info          : The limit on how many comments can be collected.
+                        The default is no limit.
+
+    ...
 
 Spider input syntax is a bit similar to scrap filter syntax. Using the 
 example above, suppose we want to only scan posts from r/gaming 
-and r/mmorpg, and we want to limit the number of posts scanned to 100 only. 
+and r/mmorpg, and we want to limit the number of posts collected to 100. 
 We could run the `reddit` spider command like so:
 
-    $ dmine -s reddit -i "/scan-subreddit: gaming,mmorpg /limit: 100"
+    $ dmine -s reddit -i "/scan-subreddit: gaming mmorpg /post-limit: 100"
 
 Similar to scrap filter, we can use symbols instead of the names of 
 each spider input.
 
-    $ dmine -s reddit -i "/r: gaming,mmorpg /l: 100"
+    $ dmine -s reddit -i "/r: gaming mmorpg /post-limit: 100"
 
 
 
