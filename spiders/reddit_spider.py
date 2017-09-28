@@ -9,7 +9,7 @@ from dmine import Spider, ScrapComponent, ValueType, Input, InputType,\
                   ComponentLoader
 
 class RedditSpider(Spider):
-    r = None # Reddit prawl instance.
+    r = None # Reddit praw instance.
     name = 'reddit'
 
     def setup_filter(self, component_group):
@@ -42,10 +42,6 @@ class RedditSpider(Spider):
         p.add_option(
             'title', ValueType.STRING_COMPARISON, symbol='t',
             info='The title of the post.'
-        )
-        p.add_option(
-            'title-regex', ValueType.REGEX_MATCH,
-            info='Use regex to compare against scanned post titles.'
         )
         p.add_option(
             'score', ValueType.INT_RANGE, symbol='s',
@@ -85,7 +81,8 @@ class RedditSpider(Spider):
                 InputType.STRING, 
                 default='all',
                 symbol='r',
-                info='A comma separated list of subreddits to be scanned. '\
+                info='A whitespace separated list of subreddits to be '
+                     'scanned. '\
                      'By default, r/all will be scanned.'
             )
         )
@@ -114,7 +111,7 @@ class RedditSpider(Spider):
             Input(
                 'sections',
                 InputType.STRING,
-                default='hot,rising,new,top',
+                default='hot rising new top',
                 info='The section in which the submission appear. Valid '\
                      'selection is hot, rising, new, or top.'
             )
@@ -224,12 +221,11 @@ class RedditSpider(Spider):
     # Get which section(s) to scrape the submissions from.
     def get_sections(self, inp):
         # Get the list of sections.
-        section_list = inp.get('sections').val().split(',')
-        section_list = [s.strip() for s in section_list]
+        section_list = inp.get('sections').val().split()
 
         # Subreddits to be scanned.
         scan_subs = inp.get('scan-subreddit').val()
-        scan_subs = '+'.join(scan_subs.split(','))
+        scan_subs = '+'.join(scan_subs.split())
 
         # Chain the listing generators of each section
         # into one listing generator.

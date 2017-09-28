@@ -510,13 +510,29 @@ class Parser:
         expr = ""
 
         ##################################################
+        # Filter methods.
+        ##################################################
+
+        # @param x: The regex pattern.
+        # @param y: The string.
+        #
+        # This method returns true if at least a match
+        # is found on `y` using regex pattern `x`. Otherwise,
+        # returns false.
+        r = lambda x, y: re.search(x, y) is not None
+
+        ##################################################
         # Subtitute the scrap option's name or symbol with
         # x to allow using name/symbol as placeholder
         # instead of x.
         ##################################################
         opt_symb = scrap_option.symbol
         opt_name = scrap_option.name
-        regex = '(\ %(x)s|%(x)s\ |\ %(x)s\ )'
+
+        # Regex to match the scrap option's name or symbol,
+        # including the ones passed as an argument of a filter method.
+        regex = '(\ %(x)s$|\ %(x)s\ |^%(x)s\ |'\
+                ',\ *%(x)s\)|\(\ *%(x)s,)'
         if not scrap_option.is_key_subbed:
             if re.search(regex % {'x': opt_name}, scrap_option.value):
                 scrap_option.value = scrap_option.value.replace(opt_name, 'x')
@@ -592,21 +608,6 @@ class Parser:
 
         if scrap_option.value_type == ValueType.STRING_COMPARISON:
             x = str(x)
-            
-            # Add in regex support.
-            regex_token_pattern = '((r)\((.+),(\ *x)\))'
-            m = re.search(regex_token_pattern, scrap_option.value)
-            token_regex = ''
-            if m is not None:
-                try:
-                    token = m.group(0) # Whole $r(regex_token, x) 
-                    token_regex = m.group(3) # the regex_token
-                except:
-                    raise
-                scrap_option.value = scrap_option.value.replace(
-                    token, '(re.search(%s, x) is not None)' % token_regex
-                )
-
             expr = scrap_option.value
 
         if scrap_option.value_type == ValueType.LIST:
