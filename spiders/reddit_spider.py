@@ -44,6 +44,10 @@ class RedditSpider(Spider):
             info='The title of the post.'
         )
         p.add_option(
+            'title-regex', ValueType.REGEX_MATCH,
+            info='Use regex to compare against scanned post titles.'
+        )
+        p.add_option(
             'score', ValueType.INT_RANGE, symbol='s',
             info='The score of the post (i.e. upvotes/downvotes).'
         )
@@ -53,11 +57,13 @@ class RedditSpider(Spider):
         )
         p.add_option(
             'allow-subreddit', ValueType.LIST, symbol='A',
-            info='Specify which subreddit(s) allowed to be scraped.'
+            info='Any post posted from any subreddit in this list will '\
+                 'be scraped, but not other post.'
         )
         p.add_option(
-            'block-subreddit', ValueType.LIST, symbol='B',
-            info='Specify which subreddit(s) not allowed to be scraped.'
+            'block-subreddit', ValueType.NOT_LIST, symbol='B',
+            info='Any post posted from any subreddit in this list will '\
+                 'not be scraped, but other posts will.'
         )
 
         # Add options to the 'comment' component.
@@ -69,7 +75,7 @@ class RedditSpider(Spider):
 
         # Add options to the 'user' component.
         u = component_group.get('user')
-        c.add_option('name', ValueType.STRING_COMPARISON, symbol='n',
+        u.add_option('name', ValueType.STRING_COMPARISON, symbol='n',
                      info='The username of a reddit user.')
 
     def setup_input(self, input_group):
@@ -166,7 +172,9 @@ class RedditSpider(Spider):
                 p.set_targets(**{
                     'title': post.title,
                     'score': post.score,
-                    'subreddit': str(post.subreddit)
+                    'subreddit': str(post.subreddit),
+                    'allow-subreddit': str(post.subreddit),
+                    'block-subreddit': str(post.subreddit)
                 })
 
                 # Scrape the post if it pass the filter.

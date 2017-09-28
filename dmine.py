@@ -47,7 +47,7 @@ class InputGroup:
                 'input for this spider.'
                 % (key, self.spider_name)
             )
-            sys.exit()
+            raise
 
     def detail(self):
         lines = ''
@@ -84,13 +84,13 @@ class Input:
                 'The input name \'%s\' has been used.'
                 % name
             )
-            sys.exit()
+            raise
         if symbol and (symbol in Input.used_symbols):
             longging.error(
                 'The input symbol \'%s\' has been used.'
                 % symbol
             )
-            sys.exit()
+            raise
 
         self.name = name
         self.symbol = symbol
@@ -126,7 +126,7 @@ class Input:
                     'either True, False, 1, or 0.'
                     % (self.name, self.input_type)
                 )
-                sys.exit()
+                raise
 
             if val in ['True', '1']:
                 val = True
@@ -142,7 +142,7 @@ class Input:
                     'is not an integer.'
                     % (self.name, self.input_type)
                 )
-                sys.exit()
+                raise
             val = int(val) 
 
         return val
@@ -153,6 +153,14 @@ class ValueType(enum.Enum):
     INT_RANGE = enum.auto()
     STRING_COMPARISON = enum.auto()
     LIST = enum.auto()
+    NOT_LIST = enum.auto()
+
+    info = {
+        TIME_COMPARISON: '',
+        INT_RANGE: '',
+        STRING_COMPARISON: '',
+        LIST: ''
+    }
 
 class ScrapComponent:
    
@@ -178,7 +186,7 @@ class ScrapComponent:
                     'must be an alphabet character.' 
                     % (self.name, name)
                 )
-                sys.exit()
+                raise
 
         if len(name) <= 1:
             logging.error(
@@ -186,7 +194,7 @@ class ScrapComponent:
                 'must consist of more than 1 characters.'
                 % (self.name, name)
             )
-            sys.exit()
+            raise
 
         self.symbol = symbol
         self.name = name
@@ -209,14 +217,14 @@ class ScrapComponent:
                     'must be an alphabet character.' 
                     % (self.name, name)
                 )
-                sys.exit()
+                raise
         if len(name) <= 1:
             logging.error(
                 'Scrap option name for the option %s::%s '\
                 'must consist of more than 1 characters.'
                 % (self.name, name)
             )
-            sys.exit()
+            raise
 
         opt = ScrapOption(name, value_type, symbol=symbol, info=info)
         opt.set_component(self)
@@ -237,7 +245,7 @@ class ScrapComponent:
                 'see the list of available scrap components and their options.'
                 % (self.name, key, self.group.spider_name)
             )
-            sys.exit()
+            raise
 
     def contain(self, key):
         return (key in self.options)
@@ -276,19 +284,7 @@ class ScrapOption:
     target = ''
     value = '*'
     value_type = ValueType.STRING_COMPARISON
-
-    # The flag `is_compiled` is used to check whether or not
-    # this scrap option's value has been compiled or not 
-    # (via Parser.compile(scrap_option, scrap_target) method).
-    #
-    # Once compiled, set `is_compiled` to True. If `is_compiled` is
-    # True, then the value of `compiled_value` is returned instead
-    # of the `compile(scrap_option, scrap_target)` method from
-    # `Parser` class.
-    #
-    # There's no need to compile the scrap option value more than once.
-    is_compiled = False
-    compiled_value = False
+    is_key_subbed = False
 
     def __init__(self, name, value_type, symbol=None, info=''):
         self.symbol = symbol
@@ -338,10 +334,6 @@ class ScrapOption:
         if self.value == '*': 
             return True
 
-        # If already compiled.
-        if self.is_compiled:
-            return self.compiled_value
-
         if target:
             out = Parser.compile(self, target)
         else:
@@ -354,8 +346,6 @@ class ScrapOption:
                 raise
             out = Parser.compile(self, self.target)
 
-        self.is_compiled = True
-        self.compiled_value = out
         return out
     
 class ComponentGroup:
@@ -373,13 +363,13 @@ class ComponentGroup:
                 'A component with the symbol %s already exists.'
                 % component.symbol
             )
-            sys.exit()
+            raise
         if component.name in self.components:
             loggging.error(
                 'A component with the name %s already exists.'
                 % component.symbol
             )
-            sys.exit()
+            raise
 
         if component.symbol:
             self.components[component.symbol] = component
@@ -396,7 +386,7 @@ class ComponentGroup:
                 'of available scrap components and their options.'
                 % (key, self.spider_name)
             )
-            sys.exit()
+            raise
 
     # Check if a key (name or symbol) representing a scrap component 
     # exists in this component group.
@@ -462,8 +452,8 @@ class Parser:
         # if m is empty or when either position in the m[0] tuple is 
         # an empty string ('').
         if not m or (m[0][0] == '' or m[0][1] == ''):
-            logging.error('Invalid filter pattern: %s', filter_input)
-            sys.exit()
+            logging.error('Invalid filter pattern: %s' % f)
+            raise
         
         components = {}
 
@@ -507,42 +497,52 @@ class Parser:
             input_value = re.findall(pattern, s)[0]
             spider_input.get(input_name).value = input_value.strip()
 
+    # @param scrap_option: The scrap option object whose value
+    #                      is to be compiled.
+    # @param scrap_target: The target string (obtained from target site)
+    #                      to be computed and compared against the
+    #                      scrap option's value.
+    #
+    # The fashion in which the scrap option value will be computed
+    # depends on its value type (defined in `ValueType` class).
     def compile(scrap_option, scrap_target):
         x = scrap_target
         expr = ""
 
+        ##################################################
         # Subtitute the scrap option's name or symbol with
         # x to allow using name/symbol as placeholder
         # instead of x.
+        ##################################################
         opt_symb = scrap_option.symbol
         opt_name = scrap_option.name
-        if re.search('\ ?%s\ ?' % opt_name, scrap_option.value):
-            scrap_option.value = scrap_option.value.replace(opt_name, 'x')
-        elif re.search('\ ?%s\ ?' % opt_symb, scrap_option.value):
-            scrap_option.value = scrap_option.value.replace(opt_symb, 'x')
-        else:
-            logging.error(
-                'Unable to find scrap option name (%s) or symbol (%s) in '\
-                'the value of %s::%s, \"%s\"'
-                % (opt_name, opt_symb, 
-                   scrap_option.component.name, opt_name, scrap_option.value)
-            )
-            raise
+        regex = '(\ %(x)s|%(x)s\ |\ %(x)s\ )'
+        if not scrap_option.is_key_subbed:
+            if re.search(regex % {'x': opt_name}, scrap_option.value):
+                scrap_option.value = scrap_option.value.replace(opt_name, 'x')
+            elif re.search(regex % {'x': opt_symb}, scrap_option.value):
+                scrap_option.value = scrap_option.value.replace(opt_symb, 'x')
+            scrap_option.is_key_subbed = True
 
         expr = expr.replace(scrap_option.name, 'x')
+
+        ##################################################
         # Ensure that the scrap option's value and its target
         # is valid according to the value type set for the
         # scrap option.
+        ##################################################
         if not Parser.is_value_valid(scrap_option) or\
            not Parser.is_target_valid(scrap_option, scrap_target):
             logging.error(
                 'The scrap option %s::%s have invalid value or scrap target.'\
                 % (scrap_option.component.name, scrap_option.name)
             )
-            sys.exit()
+            raise
 
+        ##################################################
         # Parse the scrap target to its supposed data type
         # to conduct boolean comparison operation for filtering.
+        ##################################################
         if scrap_option.value_type == ValueType.TIME_COMPARISON:
             # Dictionary of scrap target's value.
             v = scrap_target.split(' ')
@@ -592,15 +592,42 @@ class Parser:
 
         if scrap_option.value_type == ValueType.STRING_COMPARISON:
             x = str(x)
+            
+            # Add in regex support.
+            regex_token_pattern = '((r)\((.+),(\ *x)\))'
+            m = re.search(regex_token_pattern, scrap_option.value)
+            token_regex = ''
+            if m is not None:
+                try:
+                    token = m.group(0) # Whole $r(regex_token, x) 
+                    token_regex = m.group(3) # the regex_token
+                except:
+                    raise
+                scrap_option.value = scrap_option.value.replace(
+                    token, '(re.search(%s, x) is not None)' % token_regex
+                )
+
             expr = scrap_option.value
 
         if scrap_option.value_type == ValueType.LIST:
-            x = scrap_option.value.split(',')
-            expr = str(x)
+            expr = str('x in %s' % scrap_option.value.split())
+    
+        if scrap_option.value_type == ValueType.NOT_LIST:
+            expr = str('x not in %s' % scrap_option.value.split())
+       
+        if expr is '' or expr is None:
+            logging.error(
+                'The expression to be parsed is empty while attempting to '\
+                'compile the value of the scrap option %s::%s with the '\
+                'value \'%s\', the target \'%s\', and the value type %s.'
+                % (scrap_option.component.name, scrap_option.name,
+                   scrap_option.value, x, scrap_option.value_type)
+            )
+            raise
         
-        #
+        ##################################################
         # Use python parser to parse and compile the string.
-        #
+        ##################################################
         code = parser.expr(expr).compile()
         try:
             parsed_expr = eval(code)
@@ -665,7 +692,7 @@ class Parser:
         val_type = scrap_option.value_type
 
         if scrap_option.value_type == ValueType.TIME_COMPARISON:
-            return Parser.validate_int_range(scrap_option, scrap_option.value)
+            return Parser.validate_time_value(scrap_option, scrap_option.value)
 
         if scrap_option.value_type == ValueType.INT_RANGE:
             # This regex expression test for string expressions
@@ -710,7 +737,7 @@ class Parser:
 
         return True
 
-    def validate_int_range(scrap_option, string):
+    def validate_time_value(scrap_option, string):
         d = string.split(' ')
         com_name = scrap_option.component.name
         opt_name = scrap_option.name
@@ -849,7 +876,7 @@ class Spider:
                     'miner in the class \'%s\' into something else.'
                     % (self.name, self.__class__.__name__)
                 )
-                sys.exit()
+                raise
 
     # This method must be defined by the child classes
     # to define their scrap filter component group.
@@ -882,7 +909,7 @@ class Spider:
     def timer(self, time, unit='s'):
         if unit not in ['s', 'm', 'h']:
             logging.error('Invalid time unit: %s.' % unit)
-            sys.exit()
+            raise
 
 class ComponentLoader:
 
@@ -900,7 +927,7 @@ class ComponentLoader:
             logging.error('Data is expected to be of type \'int\' but '
                           '\'%s\' received.' 
                           % (dict.__name__, int.__name__))
-            sys.exit()
+            raise
         self.data = data
 
 class Reporter:
