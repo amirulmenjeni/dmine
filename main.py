@@ -19,17 +19,17 @@ def main():
     ##################################################
     parser = argparse.ArgumentParser(
                 description='Dmine is a data scraping tool.',
-                epilog='Checkout our github page at http://github.com'\
+                epilog='Check out our github page at http://github.com'\
                        '/amirulmenjeni/dmine.'
              )
     parser.add_argument('-f', '--filter', default='*', 
                         metavar='<scrap_filter_string>',
-                        help='Scrap filter string.')
+                        help='Spider scrap filter string.')
 
     parser.add_argument('-i', '--input', 
                         metavar='<input_string>',
                         dest='spider_input',
-                        help='Spider-specific input string.')
+                        help='Spider input string.')
 
     parser.add_argument('-F', '--filter-detail',
                         metavar='<spider_name>',
@@ -75,9 +75,13 @@ def main():
                         dest='timeout',
                         help='The time taken before a spider will be '\
                              'pre-empted to halt. By default, spider '\
-                             'will run indefinitely or when it is '\
-                             'interrupted by the user.')
-
+                             'will run indefinitely, or when it is '\
+                             'interrupted by the user. The time format '\
+                             'must be either S, M:S, H:M:S, or D:H:M:S, '\
+                             'where D, H, M and S are positive integers and '
+                             'represents days, hours, minutes and seconds '\
+                             'respectively.')
+    
     # Mutually exclusive args in relation to the issue
     # of output.
     output_group = parser.add_mutually_exclusive_group()
@@ -96,7 +100,7 @@ def main():
         metavar='<directory_path>',
         dest='output_dir',
         help='The directory path where the files '\
-             'containing the scraped data are saved.  '\
+             'containing the scraped data for each components are saved.  '\
              'The file names are automatically named '\
              'with respect to the name of the component '\
              'the data belongs to.'
@@ -157,10 +161,9 @@ def main():
         for c in spider_classes:
             if c.name == args.spider:
                 found = True
-                stop_event = threading.Event()
                 spider_thread = threading.Thread(
                             target=run_spider,
-                            args=(c(), args, stop_event),
+                            args=(c(), args),
                         )
                 spider_thread.start()
                 
@@ -173,7 +176,7 @@ def main():
 # @param args: Parsed argparse object.
 #
 # Spider running on its thread.
-def run_spider(instance, args, stop_event):
+def run_spider(instance, args):
     timeout = time.time() + args.timeout
 
     # Set up component group.
@@ -211,7 +214,6 @@ def run_spider(instance, args, stop_event):
     #
     # The iteration stops when there's nothing more to iterate or when
     # a timeout forces it to stop.
-    t0 = time.time()
     for r in results:
         if time.time() > timeout:
             break
@@ -227,9 +229,8 @@ def run_spider(instance, args, stop_event):
             Utils.dict_to_file(data, args.output_file, 
                           file_format=args.file_format)
 
-
 ##################################################
-# Args methods
+# Args parsing methods
 ##################################################
 
 # @param string: The string obtained from argparse.
@@ -259,10 +260,10 @@ def arg_timeout(string):
     c = 0
     for t in reversed(times):
         valid = {
-            0: lambda x: 0 < x < 60,    # seconds
-            1: lambda x: 0 < x < 60,    # minutes
-            2: lambda x: 0 < x < 24,    # hours
-            3: lambda x: 0 < x          # days
+            0: lambda x: 0 <= x < 60,    # seconds
+            1: lambda x: 0 <= x < 60,    # minutes
+            2: lambda x: 0 <= x < 24,    # hours
+            3: lambda x: 0 <= x          # days
         }
         if not valid[c](int(t)):
             msg = 'Invalid time format: \'%s\'' % string 

@@ -55,6 +55,8 @@ class InputGroup:
             if len(k) > 1:
                 name = k
                 symbol = self.get(k).symbol
+                if symbol is None:
+                    symbol = 'No symbol'
                 val = self.get(k).val()
                 info = self.get(k).info
                 input_type = str(self.get(k).input_type)
@@ -122,9 +124,15 @@ class Input:
                     'The input type for \'%s\' is %s, but the value given '\
                     'is not a boolean. Accepted value for this input is '\
                     'either True, False, 1, or 0.'
-                    % (self.name, self.value_type)
+                    % (self.name, self.input_type)
                 )
                 sys.exit()
+
+            if val in ['True', '1']:
+                val = True
+            else:
+                val = False
+
         if self.input_type == InputType.INTEGER:
             if isinstance(val, int): # Integer input convert to str.
                 val = str(val)
@@ -132,7 +140,7 @@ class Input:
                 logging.error(
                     'The input type for \'%s\' is %s, but the value given '\
                     'is not an integer.'
-                    % (self.name, self.value_type)
+                    % (self.name, self.input_type)
                 )
                 sys.exit()
             val = int(val) 
@@ -269,6 +277,19 @@ class ScrapOption:
     value = '*'
     value_type = ValueType.STRING_COMPARISON
 
+    # The flag `is_compiled` is used to check whether or not
+    # this scrap option's value has been compiled or not 
+    # (via Parser.compile(scrap_option, scrap_target) method).
+    #
+    # Once compiled, set `is_compiled` to True. If `is_compiled` is
+    # True, then the value of `compiled_value` is returned instead
+    # of the `compile(scrap_option, scrap_target)` method from
+    # `Parser` class.
+    #
+    # There's no need to compile the scrap option value more than once.
+    is_compiled = False
+    compiled_value = False
+
     def __init__(self, name, value_type, symbol=None, info=''):
         self.symbol = symbol
         self.name = name
@@ -309,17 +330,34 @@ class ScrapOption:
         self.target = target
     
     # @param target: The scraped target of type string.
+    #
+    # The `target` parameter is optional to allow the spider developer
+    # to set this scrap option's target before calling `should_()`
     def should_scrap(self, target=None):
         # The default is no filter.
         if self.value == '*': 
             return True
 
+        # If already compiled.
+        if self.is_compiled:
+            return self.compiled_value
+
         if target:
             out = Parser.compile(self, target)
         else:
+            if not self.target:
+                logging.error(
+                    'The target for the scrap option %s::%s is not '\
+                    'set.'
+                    % (self.component.name, self.name)
+                )
+                raise
             out = Parser.compile(self, self.target)
-        return out
 
+        self.is_compiled = True
+        self.compiled_value = out
+        return out
+    
 class ComponentGroup:
     components = {}
     scrap_filter = ''
@@ -389,6 +427,8 @@ class ComponentGroup:
                     if len(j) != 1:
                         name = j
                         symbol = self.get(k).get(j).symbol
+                        if symbol is None:
+                            symbol = '(No symbol)'
                         val_type = str(self.get(k).get(j).value_type)
                         val_type = val_type[val_type.find('.') + 1:]
                         info = self.get(k).get(j).info
@@ -445,9 +485,6 @@ class Parser:
                 opt.value = opt.raw_value()
                 temp_key = tuple_com
             else:
-                if not Parser.is_option_exist(component_group, temp_key, 
-                                              tuple_opt):
-                    continue
                 opt = temp_component.get(tuple_opt)
                 opt.value = opt.raw_value()
 
@@ -479,10 +516,18 @@ class Parser:
         # instead of x.
         opt_symb = scrap_option.symbol
         opt_name = scrap_option.name
-        if re.match('\ ?%s\ ?' % opt_name, scrap_option.value):
+        if re.search('\ ?%s\ ?' % opt_name, scrap_option.value):
             scrap_option.value = scrap_option.value.replace(opt_name, 'x')
-        elif re.match('\ ?%s\ ?' % opt_symb, scrap_option.value):
+        elif re.search('\ ?%s\ ?' % opt_symb, scrap_option.value):
             scrap_option.value = scrap_option.value.replace(opt_symb, 'x')
+        else:
+            logging.error(
+                'Unable to find scrap option name (%s) or symbol (%s) in '\
+                'the value of %s::%s, \"%s\"'
+                % (opt_name, opt_symb, 
+                   scrap_option.component.name, opt_name, scrap_option.value)
+            )
+            raise
 
         expr = expr.replace(scrap_option.name, 'x')
         # Ensure that the scrap option's value and its target
@@ -567,7 +612,7 @@ class Parser:
                 'Please change the variable name to %s.'\
                 % (unknown_var, scrap_option.value, scrap_option.name)
             )
-            sys.exit()
+            raise
         return parsed_expr
 
     # Compute whether or not the target (item string scraped)
@@ -641,9 +686,9 @@ class Parser:
                 return False
 
         if scrap_option.value_type == ValueType.STRING_COMPARISON:
-            pattern = 'x\ (==|!=|(not )?in) .+'
-            m = re.match(pattern, scrap_option.value)
-            if not m:
+#            pattern = '\w+\ (==|!=|(not )?in)\ x\ ?.+'
+#            m = re.match(pattern, scrap_option.value)
+            if False:
                 logging.error(
                     'The scrap option %s::%s have value type %s, '\
                     'but the scrap option value is not a string comparison '\

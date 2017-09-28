@@ -7,7 +7,6 @@ import praw
 import logging
 from dmine import Spider, ScrapComponent, ValueType, Input, InputType,\
                   ComponentLoader
-from itertools import chain
 
 class RedditSpider(Spider):
     r = None # Reddit prawl instance.
@@ -30,6 +29,13 @@ class RedditSpider(Spider):
                 info='A user submitted comment to a particular post.'
             )
         )
+        component_group.add(
+            ScrapComponent(
+                'user',
+                symbol='u',
+                info='A reddit user (redditor).'
+            )
+        )
 
         # Add options to the 'post' component.
         p = component_group.get('post')
@@ -41,7 +47,10 @@ class RedditSpider(Spider):
             'score', ValueType.INT_RANGE, symbol='s',
             info='The score of the post (i.e. upvotes/downvotes).'
         )
-        p.add_option('subreddit', ValueType.STRING_COMPARISON, symbol='r')
+        p.add_option(
+            'subreddit', ValueType.STRING_COMPARISON, symbol='r',
+            info='The subreddit where the post is posted from.'
+        )
         p.add_option(
             'allow-subreddit', ValueType.LIST, symbol='A',
             info='Specify which subreddit(s) allowed to be scraped.'
@@ -58,6 +67,11 @@ class RedditSpider(Spider):
         c.add_option('score', ValueType.INT_RANGE, symbol='s',
                      info='The comment\'s score')
 
+        # Add options to the 'user' component.
+        u = component_group.get('user')
+        c.add_option('name', ValueType.STRING_COMPARISON, symbol='n',
+                     info='The username of a reddit user.')
+
     def setup_input(self, input_group):
         input_group.add_input(
             Input(
@@ -65,18 +79,8 @@ class RedditSpider(Spider):
                 InputType.STRING, 
                 default='all',
                 symbol='r',
-                info='A comma separated list of subreddits to be scanned.'
-            )
-        )
-
-        input_group.add_input(
-            Input(
-                'scan-limit', 
-                InputType.INTEGER, 
-                default=None,
-                symbol='l',
-                info='The limit on how many posts from each listings '\
-                     '(i.e. hot, rising, etc.) will be scanned.'
+                info='A comma separated list of subreddits to be scanned. '\
+                     'By default, r/all will be scanned.'
             )
         )
 
@@ -110,6 +114,16 @@ class RedditSpider(Spider):
             )
         )
 
+        input_group.add_input(
+            Input(
+                'skip-comments',
+                InputType.BOOLEAN,
+                default=False,
+                info='Skip comments entirely. This means the spider will '\
+                     'scan posts or submissions.'
+            )
+        )
+
     def start(self, com, inp):
         ##################################################
         # Initialize PRAW
@@ -128,7 +142,7 @@ class RedditSpider(Spider):
                     redirect_uri=redirect_uri,
                     user_agent=user_agent
                 )
-        self.r.auth.url(['identity'], redirect_uri, implicit=True)
+        self.r.auth.url([], redirect_uri, implicit=False)
     
         ##################################################
         # Do spidery deeds.
@@ -143,9 +157,9 @@ class RedditSpider(Spider):
 
         post_limit = inp.get('post-limit').val()
         comment_limit = inp.get('comment-limit').val()
-
         post_count = 0
         comment_count = 0
+
         for section in sections:
             for post in section:
                 # Assign each scrap options its filter target.
@@ -167,6 +181,14 @@ class RedditSpider(Spider):
                         'author': str(post.author)
                     })
 
+                # Skip comments if the user demands it.
+                if inp.get('skip-comments').val():
+                    continue
+
+                # Skip scanning comments when limit reached.
+                if comment_count >= comment_limit:
+                    continue
+
                 # Scraping (most if not all) comments of each post.
                 post.comments.replace_more(limit=0)
                 for comment in post.comments.list():
@@ -186,6 +208,11 @@ class RedditSpider(Spider):
                             'score': str(comment.score)
                         })
 
+                    # Exit when limit is reached.
+                    if comment_count >= comment_limit and\
+                       post_count >= post_limit:
+                        return
+
     # Get which section(s) to scrape the submissions from.
     def get_sections(self, inp):
         # Get the list of sections.
@@ -196,20 +223,18 @@ class RedditSpider(Spider):
         scan_subs = inp.get('scan-subreddit').val()
         scan_subs = '+'.join(scan_subs.split(','))
 
-        limit = inp.get('scan-limit').val()
-
         # Chain the listing generators of each section
         # into one listing generator.
         selected_sections = None
         if 'hot' in section_list:
-            hot_section = self.r.subreddit(scan_subs).hot(limit=limit)
+            hot_section = self.r.subreddit(scan_subs).hot(limit=None)
             yield hot_section
         if 'new' in section_list:
-            new_section = self.r.subreddit(scan_subs).new(limit=limit)
+            new_section = self.r.subreddit(scan_subs).new(limit=None)
             yield new_section
         if 'rising' in section_list:
-            rising_section = self.r.subreddit(scan_subs).rising(limit=limit)
+            rising_section = self.r.subreddit(scan_subs).rising(limit=None)
             yield rising_section
         if 'top' in section_list:
-            top_section = self.r.subreddit(scan_subs).top(limit=limit)
+            top_section = self.r.subreddit(scan_subs).top(limit=None)
             yield top_section
