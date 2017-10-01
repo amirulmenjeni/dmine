@@ -9,7 +9,7 @@ import threading
 import time
 import logging
 import math
-from dmine import Utils, Spider, ComponentGroup, InputGroup, Parser,\
+from dmine import Utils, Spider, ComponentGroup, InputGroup,\
                   ComponentLoader, Reporter
 from spiders import *
 
@@ -193,9 +193,9 @@ def run_spider(instance, args):
                   )
     instance.setup_input(input_group)
 
-    # Parse the component group and input group.
-    Parser.parse_scrap_filter(component_group)
-    Parser.parse_input_string(input_group)
+#    # Parse the component group and input group.
+#    Parser.parse_scrap_filter(component_group)
+#    Parser.parse_input_string(input_group)
 
     # Start spider.
     results = instance.start(component_group, input_group)

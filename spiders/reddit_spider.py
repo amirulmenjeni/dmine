@@ -52,6 +52,12 @@ class RedditSpider(Spider):
             info='The subreddit where the post is posted from.'
         )
         p.add_option(
+            'timespan', ValueType.DATE_TIME, symbol='e',
+            info='The timespan in which the post is posted. If the specified '\
+                 'timespan is greater than the post\'s timespan, then '\
+                 'this scrap option will vote to scrape the post.'
+        )
+        p.add_option(
             'allow-subreddit', ValueType.LIST, symbol='A',
             info='Any post posted from any subreddit in this list will '\
                  'be scraped, but not other post.'

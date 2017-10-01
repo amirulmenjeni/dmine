@@ -5,6 +5,8 @@
 
 import os
 import sys
+import time
+import datetime
 import logging
 import time
 import json
@@ -149,14 +151,14 @@ class Input:
 
 # This class describe the type of value of the component's option.
 class ValueType(enum.Enum):
-    TIME_COMPARISON = enum.auto()
+    DATE_TIME = enum.auto()
     INT_RANGE = enum.auto()
     STRING_COMPARISON = enum.auto()
     LIST = enum.auto()
     NOT_LIST = enum.auto()
 
     info = {
-        TIME_COMPARISON: '',
+        DATE_TIME: '',
         INT_RANGE: '',
         STRING_COMPARISON: '',
         LIST: ''
@@ -265,6 +267,7 @@ class ScrapComponent:
         for k in kwargs:
             opt = self.get(k)
             opt.target = kwargs[k]
+            Interpreter.feed(opt, opt.target)
 
     # Returns False if at least one of this scrap component's option
     # is undesirable. Otherwise, return True. That is, if all of the
@@ -349,6 +352,10 @@ class ScrapOption:
         return out
     
 class ComponentGroup:
+    """
+    A component group holds all the spider's scrap components together.
+    """
+
     components = {}
     scrap_filter = ''
     spider_name = ''
@@ -430,354 +437,6 @@ class ComponentGroup:
                         lines += option
                 lines += '\n'
         return lines
-
-class Parser:
-    # @param component_group: The object of type ComponentGroup.
-    #
-    # This method parse the scrap filter string of the component
-    # group and is needed to be called right after all components
-    # and their options has been initialized in order for every
-    # component to be usable.
-    def parse_scrap_filter(component_group):
-        # By default, filter_input is set to '*', which means
-        # no filter is applied.
-        f = component_group.scrap_filter
-        if f == '*':
-            return None
-
-        r = r'([a-zA-Z-_]+{)?(\/[a-zA-Z-_]+)+'
-        m = re.findall(r, f)
-
-        # Check if pattern is valid. The pattern is inferred to be invalid
-        # if m is empty or when either position in the m[0] tuple is 
-        # an empty string ('').
-        if not m or (m[0][0] == '' or m[0][1] == ''):
-            logging.error('Invalid filter pattern: %s' % f)
-            raise
-        
-        components = {}
-
-        # Temp vars.
-        temp_key = ''
-        temp_val = []
-
-        # Populating the components dict.
-        # Note: t is a 2-tuple containing the pattern ('p{', '/t')
-        # where p and t is the component symbol and option symbol
-        # respectively. Thus, t[0][0] represent the component symbol,
-        # and t[1][1] represent the option symbol.
-        for t in m:
-            tuple_com = t[0][:-1]
-            tuple_opt = t[1][1:]
-            if t[0] is not '':
-                temp_component = component_group.get(tuple_com)
-                opt = temp_component.get(tuple_opt)
-                opt.value = opt.raw_value()
-                temp_key = tuple_com
-            else:
-                opt = temp_component.get(tuple_opt)
-                opt.value = opt.raw_value()
-
-    # Populate a spider input with values as extracted
-    # from the spider input string it's given.
-    def parse_input_string(spider_input):
-        logging.info('spider_input: %s' % spider_input)
-        if not spider_input.input_string:
-            logging.info(
-                'No spider input string was given. All '\
-                'spider inputs will use its default value.'
-            )
-            return None
-    
-        s = spider_input.input_string
-        pattern = r'\/([a-zA-Z-_]+):'
-        input_names = re.findall(pattern, s)
-        for input_name in input_names:
-            pattern = r'(?<=\/%s:)(.*?)(?=\/[a-zA-Z-_]+:|$)' % input_name
-            input_value = re.findall(pattern, s)[0]
-            spider_input.get(input_name).value = input_value.strip()
-
-    # @param scrap_option: The scrap option object whose value
-    #                      is to be compiled.
-    # @param scrap_target: The target string (obtained from target site)
-    #                      to be computed and compared against the
-    #                      scrap option's value.
-    #
-    # The fashion in which the scrap option value will be computed
-    # depends on its value type (defined in `ValueType` class).
-    def compile(scrap_option, scrap_target):
-        x = scrap_target
-        expr = ""
-
-        ##################################################
-        # Filter methods.
-        ##################################################
-
-        # @param x: The regex pattern.
-        # @param y: The string.
-        #
-        # This method returns true if at least a match
-        # is found on `y` using regex pattern `x`. Otherwise,
-        # returns false.
-        r = lambda x, y: re.search(x, y) is not None
-
-        ##################################################
-        # Subtitute the scrap option's name or symbol with
-        # x to allow using name/symbol as placeholder
-        # instead of x.
-        ##################################################
-        opt_symb = scrap_option.symbol
-        opt_name = scrap_option.name
-
-        # Regex to match the scrap option's name or symbol,
-        # including the ones passed as an argument of a filter method.
-        regex = '(\ %(x)s$|\ %(x)s\ |^%(x)s\ |'\
-                ',\ *%(x)s\)|\(\ *%(x)s,)'
-        if not scrap_option.is_key_subbed:
-            if re.search(regex % {'x': opt_name}, scrap_option.value):
-                scrap_option.value = scrap_option.value.replace(opt_name, 'x')
-            elif re.search(regex % {'x': opt_symb}, scrap_option.value):
-                scrap_option.value = scrap_option.value.replace(opt_symb, 'x')
-            scrap_option.is_key_subbed = True
-
-        expr = expr.replace(scrap_option.name, 'x')
-
-        ##################################################
-        # Ensure that the scrap option's value and its target
-        # is valid according to the value type set for the
-        # scrap option.
-        ##################################################
-        if not Parser.is_value_valid(scrap_option) or\
-           not Parser.is_target_valid(scrap_option, scrap_target):
-            logging.error(
-                'The scrap option %s::%s have invalid value or scrap target.'\
-                % (scrap_option.component.name, scrap_option.name)
-            )
-            raise
-
-        ##################################################
-        # Parse the scrap target to its supposed data type
-        # to conduct boolean comparison operation for filtering.
-        ##################################################
-        if scrap_option.value_type == ValueType.TIME_COMPARISON:
-            # Dictionary of scrap target's value.
-            v = scrap_target.split(' ')
-            target_time = {
-                'y': 0, 'M': 0, 'd': 0,
-                'h': 0, 'm': 0, 's': 0
-            }
-            for u in v:
-                target_time[u[-1]] = int(u[:-1])
-
-            # Dictonary of scrap option's value.
-            v = scrap_option.value.split(' ')
-            value_time = {
-                'y': 0, 'M': 0, 'd': 0,
-                'h': 0, 'm': 0, 's': 0
-            }
-            for u in v:
-                value_time[u[-1]] = int(u[:-1])
-
-            # Conversion from the given time units to seconds.
-            secs = {
-                'y': 365 * 24 * 60 * 60,
-                'M': 30 * 24 * 60 * 60,
-                'd': 24 * 60 * 60,
-                'h': 60 * 60,
-                'm': 60,
-                's': 1
-            }
-
-            # Convert both target and option value to seconds
-            # to be compared.
-            scrap_target_secs = 0
-            for k in target_time:
-                scrap_target_secs += target_time[k] * secs[k]
-            scrap_value_secs = 0
-            for k in value_time:
-                scrap_value_secs += value_time[k] * secs[k]
-
-            if scrap_target_secs <= scrap_value_secs:
-                expr = "True"
-            else:
-                expr = "False"
-
-        if scrap_option.value_type == ValueType.INT_RANGE:
-            x = int(x)
-            expr = scrap_option.value
-
-        if scrap_option.value_type == ValueType.STRING_COMPARISON:
-            x = str(x)
-            expr = scrap_option.value
-
-        if scrap_option.value_type == ValueType.LIST:
-            expr = str('x in %s' % scrap_option.value.split())
-    
-        if scrap_option.value_type == ValueType.NOT_LIST:
-            expr = str('x not in %s' % scrap_option.value.split())
-       
-        if expr is '' or expr is None:
-            logging.error(
-                'The expression to be parsed is empty while attempting to '\
-                'compile the value of the scrap option %s::%s with the '\
-                'value \'%s\', the target \'%s\', and the value type %s.'
-                % (scrap_option.component.name, scrap_option.name,
-                   scrap_option.value, x, scrap_option.value_type)
-            )
-            raise
-        
-        ##################################################
-        # Use python parser to parse and compile the string.
-        ##################################################
-        code = parser.expr(expr).compile()
-        try:
-            parsed_expr = eval(code)
-        except NameError as e:
-            unknown_var = re.search('name \'(.*)\' is not defined', str(e))\
-                            .group(1)
-            logging.error(
-                'Unknown variable \'%s\' in the expression \'%s\'. '\
-                'Please change the variable name to %s.'\
-                % (unknown_var, scrap_option.value, scrap_option.name)
-            )
-            raise
-        return parsed_expr
-
-    # Compute whether or not the target (item string scraped)
-    # meet the expectation of the value type of the scrape option
-    # it is tested with.
-    def is_target_valid(scrap_option, scrap_target):
-        com_name = scrap_option.component.name
-        opt_name = scrap_option.name
-        val_type = scrap_option.value_type
-
-        if scrap_option.value_type == ValueType.TIME_COMPARISON:
-            return Parser.validate_int_range(scrap_option, scrap_target)
-
-        if scrap_option.value_type == ValueType.INT_RANGE:
-            if isinstance(scrap_target, int):
-                scrap_target = str(scrap_target)
-            if not scrap_target.isdigit():
-                logging.error(
-                    'The scrap option %s::%s have value type %s, '
-                    'but the scrap target is not an integer.'\
-                    % (com_name, opt_name, val_type)
-                )
-                return False
-
-        if scrap_option.value_type == ValueType.STRING_COMPARISON:
-            if not isinstance(scrap_target, str):
-                logging.error(
-                    'The scrap option %s::%s have value type %s, '\
-                    'but the scrap target is not a string.'\
-                    % (com_name, opt_name, val_type)
-                )
-                return False
-        
-        if scrap_option.value_type == ValueType.LIST:
-            if not isinstance(scrap_target, str):
-                logging.error(
-                    'The scrap option %s::%s have value type %s, '\
-                    'but the scrap target is not a string.'\
-                    % (com_name, opt_name, val_type)
-                )
-                return False
-
-        return True
-
-    # Compute whether or not the value of the scrap option
-    # meet the expectation of the value type it is given.
-    def is_value_valid(scrap_option):
-        com_name = scrap_option.component.name
-        opt_name = scrap_option.name
-        val_type = scrap_option.value_type
-
-        if scrap_option.value_type == ValueType.TIME_COMPARISON:
-            return Parser.validate_time_value(scrap_option, scrap_option.value)
-
-        if scrap_option.value_type == ValueType.INT_RANGE:
-            # This regex expression test for string expressions
-            # for comparing numbers (inequality and equality).
-            p = r'(((\d+\ *\<=*)*\ *x\ *\<=*\ *\d+)'\
-                '|(\d+\ *\<=*\ *x\ *(\<=*\ *\d+)*)'\
-                '|((\d+\ *\>=*)*\ *x\ *\>=*\ *\d+)'\
-                '|(\d+\ *\>=*\ *x\ *(\>=*\ *\d+)*)'\
-                '|(x\ *==\ *\d+)'\
-                '|(\d+\ *==\ *x))'
-            if not re.match(p, scrap_option.value):
-                logging.error(
-                    'The scrap optioon %s::%s have value type %s, '\
-                    'but the scrap option value is not an integer comparison '\
-                    'operation. (Value: "%s")'
-                    % (com_name, opt_name, val_type, scrap_option.value)
-                )
-                return False
-
-        if scrap_option.value_type == ValueType.STRING_COMPARISON:
-#            pattern = '\w+\ (==|!=|(not )?in)\ x\ ?.+'
-#            m = re.match(pattern, scrap_option.value)
-            if False:
-                logging.error(
-                    'The scrap option %s::%s have value type %s, '\
-                    'but the scrap option value is not a string comparison '\
-                    'operation. (Value: "%s")'
-                    % (com_name, opt_name, val_type, scrap_option.value)
-                )
-                return False
-
-        if scrap_option.value_type == ValueType.LIST:
-            pattern = '([a-zA-Z0-9-_ ]+)(,\s*[a-zA-Z0-9-_ ]+)*'
-            m = re.match(pattern, scrap_option.value)
-            if len(m.group(0)) != len(scrap_option.value):
-                logging.error(
-                    'The scrap option %s::%s have the value type %s, '\
-                    'but the scrap option value is not a comma separated '\
-                    'list.'
-                )
-                return False
-
-        return True
-
-    def validate_time_value(scrap_option, string):
-        d = string.split(' ')
-        com_name = scrap_option.component.name
-        opt_name = scrap_option.name
-        val_type = scrap_option.value_type
-
-        # Dict keeping record which unit has been used.
-        unit_instance = {
-            'y': False, 'M': False, 'd': False,
-            'h': False, 'm': False, 's': False
-        }
-
-        for i in d:
-            if re.match(r'^\d+[yMdhms]{1}$', i):
-                if unit_instance[i[-1]]:
-                    logging.warning(
-                        'Scrap component %s::%s: '\
-                        'Multiple instance of time with the unit \'%s\' '\
-                        'in "%s". Last occurence of the instance will be '\
-                        'used.'\
-                        % (com_name, opt_name, i[-1], scrap_option.value)
-                    )
-                else:
-                    unit_instance[i[-1]] = True
-            else:
-                logging.error(
-                    'The scrap option %s::%s have value type %s, '\
-                    'but the scrap option value or scrap target'\
-                    ' does not meet the pattern requirement.'\
-                    % (com_name, opt_name, val_type)
-                )
-                return False
-            if int(i[:-1]) < 0:
-                logging.error(
-                    'Scrap option %s::%s: '\
-                    'The amount of time passed can not be negative.'\
-                    % (com_name, opt_name)
-                )
-                return False
-        return True
 
 class Utils:
 
@@ -930,15 +589,3 @@ class ComponentLoader:
                           % (dict.__name__, int.__name__))
             raise
         self.data = data
-
-class Reporter:
-    spiders = {}
-    generals = {}
-
-    # Report spider specific status.
-    def spider(spider, item, value):
-        Reporter.spiders[spider] = {item: value}
-       
-    # Report general status.
-    def general(item, value):
-        Reporter.general[item] = value

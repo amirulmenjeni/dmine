@@ -18,7 +18,7 @@ do
 
     if [[ $need_quotes == 1 ]];
     then
-        arguments=$arguments"\"$arg\" "
+        arguments=$arguments\"$arg\"" "
         need_quotes=0   
     else
         arguments=$arguments"$arg "
