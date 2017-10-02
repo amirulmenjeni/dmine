@@ -171,7 +171,7 @@ class RedditSpider(Spider):
 
         for section in sections:
             for post in section:
-                # Assign each scrap options its filter target.
+                # Assign each component's attribute.
                 p.set_targets(**{
                     'title': post.title,
                     'score': post.score,

@@ -29,16 +29,21 @@ class Lexer:
         # A list of token (a tuple with an type of token and the value
         # of the token itself).
         tokens = []
-
+    
         i = 0
         c = ''
         errored_token = ''
         #print('Line length:', len(line))
         while i < len(line):
+            errored_token = line[i]
             # Ignore whitespace.
-            if line[i] == ' ' or line[i] == '\t':
+            if Lexer.__is_whitespace(line[i]):
                 #print('---WHITESPACE---')
                 #print('    i: %s, c: %s' % (i, line[i]))
+                i += 1
+
+            # Ignore new lines.
+            elif Lexer.__is_newline(line[i]):
                 i += 1
 
             # TYPE: identifier or operator
@@ -47,7 +52,7 @@ class Lexer:
             # character, the starting char of an identifier may
             # be confused with an operator's.
             elif re.match('[_a-zA-Z]', line[i]) or\
-                 Lexer.__is_operator(i, line):
+                 Lexer.__is_operator(line[i]):
 
                 j = i
                 operator = ''
@@ -84,7 +89,7 @@ class Lexer:
                 #print('---OPERATOR---')
                 if line[j].isalpha():
                     while j < len(line) and\
-                          Lexer.__is_operator(j, line) and\
+                          Lexer.__is_operator(line[j]) and\
                           line[j].isalpha():
                         
                         #print('    j: %s, c: %s' % (j, line[j]))
@@ -92,7 +97,7 @@ class Lexer:
                         j += 1
                 else:
                     while j < len(line) and\
-                          Lexer.__is_operator(j, line) and\
+                          Lexer.__is_operator(line[j]) and\
                           not line[j].isalpha():
 
                         #print('    j: %s, c: %s' % (j, line[j]))
@@ -163,14 +168,20 @@ class Lexer:
         logging.error(msg)
         raise ValueError(msg)
 
-    def __is_operator(i, line):
-        regex = '[()<>!=\:andornotin]'
-        return re.match(regex, line[i]) is not None
+    def __is_operator(c):
+        regex = '[(){}<>!=andornotin]'
+        return re.match(regex, c) is not None
 
     def __is_operator_valid(operator):
-        valid_operators = ['(', ')', '<', '<=', '>', '>=', '::',\
+        valid_operators = ['(', ')', '{', '}', '<', '<=', '>', '>=',\
                            '==', '!=', 'and', 'or', 'not', 'in'] 
         return operator in valid_operators
+
+    def __is_whitespace(c):
+        return c == ' ' or c == '\t'
+
+    def __is_newline(c):
+        return c == '\n'
 
     def __is_identifier(i, line):
         c = line[i]
@@ -349,35 +360,44 @@ class Parser:
     The expression node method. Note that the EBNF expression
     for the expression is:
 
-        expr ::= 
-              ["not"] expr 
-            | term ("and" | "or") term {("and" | "or") expr}
+        expr ::= { identifier "{" term { ( "and" | "or" ) term  }  "}"  }
     """
     def __expr(self, node):
-        sym, val = self.curr
-        if sym == 'not':
-            self.__nextsym()
-        self.__term(node.add_child('TERM', 'NODE'))
+     
+        # Count the number of identifiers.
+        idn_count = 0
 
-        while self.curr[0] in ('and', 'or'):
+        while self.curr[0] == 'identifier':
+            idn_count += 1
             node.add_child(self.curr[0], self.curr[1])
             self.__nextsym()
-
-            if self.curr[0] == 'not':
+            self.__expect("{")
+            node.add_child(self.prev[0], self.prev[1])
+            self.__term(node.add_child('TERM', 'NODE'))
+            while self.curr[0] in ('and', 'or'):
                 node.add_child(self.curr[0], self.curr[1])
                 self.__nextsym()
+                self.__term(node.add_child('TERM', 'NODE'))
+            self.__expect("}")
+            node.add_child(self.prev[0], self.prev[1])
 
-            self.__term(node.add_child('TERM', 'NODE'))
+        if idn_count == 0:
+            self.__throw_e  
 
     """
     The term node method. Note that the EBNF expression for the term is:
 
     opt ::= ("<" | "<=" | ">" | ">=" | "==" | "!=" | ["not"] "in")
     term ::= 
-          factor opt factor {opt factor}
+          factor opt factor { opt factor }
+        | ["not"] term
     """
     def __term(self, node):
-        self.__factor(node.add_child('FRACTION', 'NODE'))
+        if self.curr[0] == 'not':
+            node.add_child(self.curr[0], self.curr[1])
+            self.__nextsym()
+
+        self.__factor(node.add_child('FACTOR', 'NODE'))
         while self.curr[0] in Parser.comparators:
             node.add_child(self.curr[0], self.curr[1])
             self.__nextsym()
@@ -386,7 +406,7 @@ class Parser:
                 node.add_child(self.curr[0], self.curr[1])
                 self.__nextsym()
 
-            self.__factor(node.add_child('FRACTION', 'NODE'))
+            self.__factor(node.add_child('FACTOR', 'NODE'))
 
     """
     The factor node method. Note that the EBNF expression for the factor is:
@@ -394,30 +414,24 @@ class Parser:
     factor ::= 
           "string" 
         | "number"
-        | "identifier""::""identifier" 
-        | "(" expr ")"
+        | identifier
+        | "(" term ")"
     """
     def __factor(self, node):
         csym, cval = self.curr
 
         if self.__accept('string'):
             node.add_child(self.prev[0], self.prev[1])
-            pass
 
         elif self.__accept('number'):
             node.add_child(self.prev[0], self.prev[1])
-            pass
 
         elif self.__accept('identifier'):
-            node.add_child(self.prev[0], self.prev[1])
-            self.__expect('::')
-            node.add_child(self.prev[0], self.prev[1])
-            self.__expect('identifier')
             node.add_child(self.prev[0], self.prev[1])
 
         elif self.__accept('('):
             node.add_child(self.prev[0], self.prev[1])
-            self.__expr(node.add_child('EXPR', 'NODE'))
+            self.__term(node.add_child('TERM', 'NODE'))
             self.__expect(')')
             node.add_child(self.prev[0], self.prev[1])
 
@@ -472,7 +486,6 @@ class Interpreter:
     def run(line):
         tokens = Lexer.lexer(line)
         parse_tree = Parser(tokens).parse()
-        result = Evaluator.eval(parse_tree, identifiers)
         return parse_tree
 
 class ParseTree:
