@@ -344,7 +344,7 @@ class Parser:
     This method returns the parse tree.
     """
     def parse(self):
-        root = ParseTree('PROG', '')
+        root = ParseTree('PROG', 'NODE')
         self.__prog(root)
         return root
 
@@ -360,29 +360,35 @@ class Parser:
     The expression node method. Note that the EBNF expression
     for the expression is:
 
-        expr ::= { identifier "{" term { ( "and" | "or" ) term  }  "}"  }
+        expr ::= { identifier "{" eval "}"  }
     """
     def __expr(self, node):
      
-        # Count the number of identifiers.
-        idn_count = 0
-
         while self.curr[0] == 'identifier':
-            idn_count += 1
+            # Add the identifier (scrape component),
+            # and expect "{"
             node.add_child(self.curr[0], self.curr[1])
             self.__nextsym()
             self.__expect("{")
             node.add_child(self.prev[0], self.prev[1])
-            self.__term(node.add_child('TERM', 'NODE'))
-            while self.curr[0] in ('and', 'or'):
-                node.add_child(self.curr[0], self.curr[1])
-                self.__nextsym()
-                self.__term(node.add_child('TERM', 'NODE'))
+
+            # EVAL production.
+            self.__eval(node.add_child('EVAL', 'NODE'))
+
             self.__expect("}")
             node.add_child(self.prev[0], self.prev[1])
 
-        if idn_count == 0:
-            self.__throw_e  
+    """
+    The eval node method. Note that the EBNF expression for the expression
+    is:
+        eval ::= term ( "and" | "or" ) term { ( "and" | "or" ) term }
+    """
+    def __eval(self, node):
+        self.__term(node.add_child('TERM', 'NODE'))
+        while self.curr[0] in ('and', 'or'):
+            node.add_child(self.curr[0], self.curr[1])
+            self.__nextsym()
+            self.__term(node.add_child('TERM', 'NODE'))
 
     """
     The term node method. Note that the EBNF expression for the term is:
@@ -393,6 +399,7 @@ class Parser:
         | ["not"] term
     """
     def __term(self, node):
+
         if self.curr[0] == 'not':
             node.add_child(self.curr[0], self.curr[1])
             self.__nextsym()
@@ -408,6 +415,7 @@ class Parser:
 
             self.__factor(node.add_child('FACTOR', 'NODE'))
 
+
     """
     The factor node method. Note that the EBNF expression for the factor is:
 
@@ -415,7 +423,7 @@ class Parser:
           "string" 
         | "number"
         | identifier
-        | "(" term ")"
+        | "(" eval ")"
     """
     def __factor(self, node):
         csym, cval = self.curr
@@ -431,7 +439,7 @@ class Parser:
 
         elif self.__accept('('):
             node.add_child(self.prev[0], self.prev[1])
-            self.__term(node.add_child('TERM', 'NODE'))
+            self.__eval(node.add_child('TERM', 'NODE'))
             self.__expect(')')
             node.add_child(self.prev[0], self.prev[1])
 
@@ -449,30 +457,141 @@ class Parser:
 
 class Evaluator:
 
-    """
-    @param parse_tree: The parse tree object that is obtained 
-                       from the parser.
-    @param identifiers: The list of dict of identifiers.
-    """
-    def eval(parse_tree, identifiers):
-        
-        pass
+    def __init__(self, typ, val):
+        self.typ = typ
+        self.val = val
+        self.left = None
+        self.right = None
 
-    def parse_node(node):
+    def eval(pt, idns):
+        """
+        @param pt: The parse tree object that is obtained 
+                   from the parser.
+        @param idns: The list of dict of identifiers.
+        """
 
-        if node.symbol == 'string':
-            return node.value
+        opts = Evaluator('PROG', 'PROG')
+        print(idns)
+        Evaluator.parse_node(pt, opts, '', idns)
 
-        elif node.symbol == 'number':
-            return node.value
+    def parse_node(node, res, scope, idns):
+        # print('TESTING NODE:', (node.symbol, node.value))
+        for n in node.children:
+            if n.symbol == 'string':
+                pass
+            elif n.symbol == 'number':
+                # Evaluator.__operate(int(n.value), res, idns)
+                pass
+            elif n.symbol == 'identifier':
+                if scope == '':
+                    # Update the new scope, and check if it's defined.
+                    scope = n.value
+                    if not Evaluator.__is_defined(idns, scope):
+                        Evaluator.__throw_eval_error(
+                            'Undefined scrape component: %s' % scope
+                        )
+                else:
+                    # Check if the identifier is defined within the scope.
+                    # (i.e. if the component contains the attribute.)
+                    if not Evaluator.__is_defined(idns, scope, n.value):
+                        Evaluator.__throw_eval_error(
+                            'In the scrape component \'%s\', '\
+                            'there\'s undefined attribute: %s'\
+                            % (scope, n.value)
+                        )
+                    val = Evaluator.__get_idn_val(idns, scope, n.value)
+                    # Evaluator.__operate(val, res, idns)
+            elif n.symbol in 'EXPR':
+                Evaluator.parse_node(n, res, scope, idns)
+            elif n.symbol in 'EVAL':
+                Evaluator.parse_node(n, res, scope, idns)
+            elif n.symbol in 'TERM':
+                Evaluator.parse_node(n, res, scope, idns)
+            elif n.symbol in 'FACTOR':
+                Evaluator.parse_node(n, res, scope, idns)
+            else:
+                # This node should be an operator, if it's non
+                # of the above.
+                
+                # Reset the scope when '}' end of scope.
+                if n.symbol == '}':
+                    scope = ''
 
-        elif node.symbol == 'identifier':
+    def __operate(val, res, idns):
+        """
+
+        """
+        print('            OPERATING:', res)
+
+        if len(res) <= 2:
             pass
-
+        elif res[-1] in ('{', '}', '('):
+            pass
         else:
-            pass
-    def operate(sym):
-        pass
+            if res[-1] == '>':
+                val = res[-2] > val
+            elif res[-1] == '>=':
+                val = res[-2] >= val
+            elif res[-1] == '<':
+                val = res[-2] < val
+            elif res[-1] == '<=':
+                val = res[-2] <= val
+            elif res[-1] == '==':
+                val = res[-2] == val
+            elif res[-1] == '!=':
+                val = res[-2] != val
+            else:
+                Evaluator.__throw_eval_error(
+                    'Invalid operator: %s' % res[-1]
+                )
+
+            # Pop the operator and its operand.
+            res.pop()
+            res.pop() 
+            if res[-1] == '(':
+                res.pop()
+
+        res.append(val)
+
+        print('            OPERATED:', res)
+
+    def __get_idn_val(idns, comp, attr):
+        for idn in idns:
+            if idn.key == comp:
+                return idn[attr]
+        Evaluator.__throw_eval_error(
+            'Attribute not found: %s' % attr
+        )
+  
+    def __is_defined(idns, component, attribute=None):
+        """
+        @param component: The supposed component.
+        @param attribute: The supposed attribute the component.
+
+        Check if the identifier (the scrape component or its attribute) 
+        is defined or not. Returns True if defines. Otherwise, 
+        returns False.
+        """
+        
+        # The attribute is None, so we're only
+        # checking whether the component is defined.
+        if attribute is None:
+            for idn in idns:
+                if component == idn.key:
+                    return True
+            return False
+
+        # The attribute is not None, so we're checking
+        # whether the attribute is defined under the component.
+        else:
+            for idn in idns:
+                if idn.has_attr(attribute):
+                    return True
+            return False
+
+    def __throw_eval_error(msg):
+        logging.error(msg)
+        raise SyntaxError(msg)
 
 class Interpreter:
 
@@ -484,19 +603,38 @@ class Interpreter:
         pass
 
     def run(line):
+
+        # For testing purpose.
+        post = Component('post')
+        post['title'] = 'This cat is funny'
+        post['score'] = 99
+        comment = Component('comment')
+        comment['body'] = 'No it isn\'t'
+        comment['score'] = -19
+        idns = [post, comment]
+
         tokens = Lexer.lexer(line)
         parse_tree = Parser(tokens).parse()
-        return parse_tree
+        print('====PARSE TREE====')
+        print(parse_tree) 
+#        print('====EVALUATORZ====')
+#        return Evaluator.eval(parse_tree, idns)
 
 class ParseTree:
 
     symbol = ''
     value = ''
+    left = None
+    right = None
+    parent = None
     children = []
    
     def __init__(self, symbol, value):
+        self.parent = None
         self.symbol = symbol
         self.value = value
+        self.left = None
+        self.right = None
         self.children = []
 
     """
@@ -505,6 +643,7 @@ class ParseTree:
     """
     def add_child(self, symbol, value):
         new_child = ParseTree(symbol, value)
+        new_child.parent = self
         self.children.append(new_child)
         return new_child
 
@@ -513,7 +652,10 @@ class ParseTree:
     printed string.
     """
     def __repr__(self, depth=4):
-        s = [str('[%s] %s' % (self.symbol, self.value))]
+        lr = ''
+        if self.left or self.right:
+            lr = str((self.left, self.right))
+        s = [str('[%s] %s   %s' % (self.symbol, self.value, lr))]
         for child in self.children:
             s.extend(['\n', ' ' * (depth + 1), child.__repr__(depth + 4)])
         return ''.join(s)
@@ -542,6 +684,9 @@ class Component(dict):
         self.attr_dict = {}
         self.__dict__[self.key] = self.attr_dict
 
+    def has_attr(self, attr):
+        return attr in self.attr_dict
+
     def __setitem__(self, attribute, value):
         self.attr_dict[attribute] = value
         self.__dict__[self.key] = self.attr_dict
@@ -554,3 +699,4 @@ class Component(dict):
 
     def __str__(self):
         return repr(self)
+
