@@ -355,19 +355,18 @@ class Parser:
         expr ::= { identifier "{" eval "}"  }
     """
     def __expr(self, node):
-        while self.curr[0] == 'identifier':
-            # Add the identifier (scrape component),
-            # and expect "{"
-            node.add_child(self.curr[0], self.curr[1]) 
-            self.__nextsym()
-            self.__expect("{")
-            node.add_child(self.prev[0], self.prev[1])
+        self.__expect('identifier')
+        # Add the identifier (scrape component),
+        # and expect "{"
+        node.add_child(self.prev[0], self.prev[1]) 
+        self.__expect("{")
+        node.add_child(self.prev[-1], self.prev[1])
 
-            # EVAL production.
-            self.__eval(node.add_child('EVAL', 'NODE'))
+        # EVAL production.
+        self.__eval(node.add_child('EVAL', 'NODE'))
 
-            self.__expect("}")
-            node.add_child(self.prev[0], self.prev[1])
+        self.__expect("}")
+        node.add_child(self.prev[0], self.prev[1])
 
     """
     The eval node method. Note that the EBNF expression for the expression
