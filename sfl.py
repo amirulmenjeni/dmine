@@ -144,8 +144,8 @@ class Lexer:
             #
             # A token of type number have all digits for its
             # chars. So, 123abc is not an integer.
-            elif re.match('[0-9]', line[i]):
-                number, i = Lexer.__scan(i, line, '[.0-9]') 
+            elif re.match('[\-0-9]', line[i]):
+                number, i = Lexer.__scan(i, line, '[\-.0-9]') 
                 if number:
                     if Lexer.__is_valid_number(number):
                         tokens.append(('number', number))
@@ -226,7 +226,7 @@ class Lexer:
     # Returns True if the number is valid -- either an integer
     # or a floating point number.
     def __is_valid_number(number):
-        return re.match('^\d+(\.\d+)?$', number) is not None
+        return re.match('^\-?\d+(\.\d+)?$', number) is not None
 
 class Parser:
     """
@@ -363,11 +363,10 @@ class Parser:
         expr ::= { identifier "{" eval "}"  }
     """
     def __expr(self, node):
-     
         while self.curr[0] == 'identifier':
             # Add the identifier (scrape component),
             # and expect "{"
-            node.add_child(self.curr[0], self.curr[1])
+            node.add_child(self.curr[0], self.curr[1]) 
             self.__nextsym()
             self.__expect("{")
             node.add_child(self.prev[0], self.prev[1])
@@ -439,7 +438,7 @@ class Parser:
 
         elif self.__accept('('):
             node.add_child(self.prev[0], self.prev[1])
-            self.__eval(node.add_child('TERM', 'NODE'))
+            self.__eval(node.add_child('EVAL', 'NODE'))
             self.__expect(')')
             node.add_child(self.prev[0], self.prev[1])
 
@@ -469,19 +468,39 @@ class Evaluator:
                    from the parser.
         @param idns: The list of dict of identifiers.
         """
-
-        opts = Evaluator('PROG', 'PROG')
+        res = []
         print(idns)
-        Evaluator.parse_node(pt, opts, '', idns)
+        return Evaluator.parse_node(pt, idns)
 
-    def parse_node(node, res, scope, idns):
+    def parse_node(node, idns, scope=''):
+        """
+        @param node: A node in a parse tree.
+        @param idns: The list of identifier dicts.
+        @param scope: This should be left untouched at first called.
+                      This parameter is used internally in this method
+                      to keep track and check the scope of the scrap 
+                      attributes.
+
+        Simply put, given parse tree from the following scrap filter input:
+        
+            post { score > 0 } and comment { 0 < score < 100 }
+
+        If the post's score is greater than zero, but the comment's score
+        is greater than 100, this method will returns the following 
+        dictionary object:
+
+            {post: True, comment: False}
+        """
+
+
         # print('TESTING NODE:', (node.symbol, node.value))
         for n in node.children:
             if n.symbol == 'string':
-                pass
+                n.parent.children = []
+                n.parent.symbol, n.parent.value = n.symbol, n.value
             elif n.symbol == 'number':
-                # Evaluator.__operate(int(n.value), res, idns)
-                pass
+                n.parent.children = []
+                n.parent.symbol, n.parent.value = n.symbol, int(n.value)
             elif n.symbol == 'identifier':
                 if scope == '':
                     # Update the new scope, and check if it's defined.
@@ -499,16 +518,31 @@ class Evaluator:
                             'there\'s undefined attribute: %s'\
                             % (scope, n.value)
                         )
-                    val = Evaluator.__get_idn_val(idns, scope, n.value)
-                    # Evaluator.__operate(val, res, idns)
+                    n.value = Evaluator.__get_idn_val(idns, scope, n.value)
+                    n.parent.children = []
+                    n.parent.symbol, n.parent.value = n.symbol, n.value
             elif n.symbol in 'EXPR':
-                Evaluator.parse_node(n, res, scope, idns)
+                Evaluator.parse_node(n, idns, scope)
+                   
+                # Once we finished parsing each nodes in EXPR,
+                # create the output dict and return it.
+                out = {}
+                for i in range(len(n.children)):
+                    if n.children[i].symbol == 'identifier':
+                        out[n.children[i].value] = n.children[i + 2].value
+                return out
+
             elif n.symbol in 'EVAL':
-                Evaluator.parse_node(n, res, scope, idns)
+                Evaluator.parse_node(n, idns, scope)
+                Evaluator.__operate(n)
             elif n.symbol in 'TERM':
-                Evaluator.parse_node(n, res, scope, idns)
+                Evaluator.parse_node(n, idns, scope)
+                Evaluator.__operate(n)
             elif n.symbol in 'FACTOR':
-                Evaluator.parse_node(n, res, scope, idns)
+                Evaluator.parse_node(n, idns, scope)
+                if len(n.children) > 0:
+                    Evaluator.__operate(n)
+                    n.parent.value = n.value
             else:
                 # This node should be an operator, if it's non
                 # of the above.
@@ -517,44 +551,67 @@ class Evaluator:
                 if n.symbol == '}':
                     scope = ''
 
-    def __operate(val, res, idns):
-        """
+    def __operate(n):
+        print('OPERATING:', n.symbol, n.value,\
+              [(c.symbol, c.value) for c in n.children])
 
-        """
-        print('            OPERATING:', res)
+        # If a node has only one child (i.e. no evaluation takes place),
+        # then just take the child's value.
+        if len(n.children) == 1:
+            n.value = n.children[0].value
+            n.children = []
+            return
 
-        if len(res) <= 2:
-            pass
-        elif res[-1] in ('{', '}', '('):
-            pass
-        else:
-            if res[-1] == '>':
-                val = res[-2] > val
-            elif res[-1] == '>=':
-                val = res[-2] >= val
-            elif res[-1] == '<':
-                val = res[-2] < val
-            elif res[-1] == '<=':
-                val = res[-2] <= val
-            elif res[-1] == '==':
-                val = res[-2] == val
-            elif res[-1] == '!=':
-                val = res[-2] != val
+        i = 0
+        opts = ('<', '<=', '>', '>=', '==', '!=',\
+                'and', 'or', 'not', 'in', '(')
+        while i < len(n.children):
+
+            opt = ''
+            j = 0
+            res = True
+            print('i:', i)
+
+            while n.children[i].symbol in opts:
+                opt += n.children[i].symbol
+                print('opt:', opt)
+                i += 1
+                j += 1
+                
+                if i >= len(n.children):
+                    break
+
+            if opt != '':
+                left = None
+                if i - j - 1 >= 0:
+                    left = n.children[i - j - 1].value
+                right = n.children[i].value
+                print('left opt right:', left, opt, right)
+                operate = {
+                    '<': lambda x, y: x < y,
+                    '<=': lambda x, y: x <= y,
+                    '>': lambda x, y: x > y,
+                    '>=': lambda x, y: x >= y,
+                    '==': lambda x, y: x == y,
+                    '!=': lambda x, y: x != y,
+                    'in': lambda x, y: x in y,
+                    'notin': lambda x, y: x not in y,
+                    'and': lambda x, y: x and y,
+                    'or': lambda x, y: x or y,
+                    '(': lambda x, y: y
+                }
+                res = operate[opt](left, right)
+                print('res:', res)
+
+            if res:
+                i += 1
             else:
-                Evaluator.__throw_eval_error(
-                    'Invalid operator: %s' % res[-1]
-                )
+                break
 
-            # Pop the operator and its operand.
-            res.pop()
-            res.pop() 
-            if res[-1] == '(':
-                res.pop()
-
-        res.append(val)
-
-        print('            OPERATED:', res)
-
+        print('returned res:', res)
+        n.children = []
+        n.value = res
+            
     def __get_idn_val(idns, comp, attr):
         for idn in idns:
             if idn.key == comp:
@@ -617,8 +674,8 @@ class Interpreter:
         parse_tree = Parser(tokens).parse()
         print('====PARSE TREE====')
         print(parse_tree) 
-#        print('====EVALUATORZ====')
-#        return Evaluator.eval(parse_tree, idns)
+        print('====EVALUATORZ====')
+        return Evaluator.eval(parse_tree, idns)
 
 class ParseTree:
 
@@ -647,6 +704,16 @@ class ParseTree:
         self.children.append(new_child)
         return new_child
 
+    def setl(self, sym, val):
+        self.left = ParseTree(sym, val)
+        self.left.parent = self
+        return self.left
+
+    def setr(self, sym, val):
+        self.right = ParseTree(sym, val)
+        self.right.parent = self
+        return self.right
+
     """
     Returns the representation of this ParseTree. It will be a pretty
     printed string.
@@ -655,7 +722,7 @@ class ParseTree:
         lr = ''
         if self.left or self.right:
             lr = str((self.left, self.right))
-        s = [str('[%s] %s   %s' % (self.symbol, self.value, lr))]
+        s = [str('[%s] %s %s' % (self.symbol, self.value, lr))]
         for child in self.children:
             s.extend(['\n', ' ' * (depth + 1), child.__repr__(depth + 4)])
         return ''.join(s)
