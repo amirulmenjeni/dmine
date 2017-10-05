@@ -14,6 +14,7 @@ import jsonlines
 import re
 import enum
 import parser
+from sfl import Interpreter
 from abc import ABCMeta, abstractmethod
 
 # The types of expected and valid input for each instance of an
@@ -149,296 +150,224 @@ class Input:
 
         return val
 
-# This class describe the type of value of the component's option.
-class ValueType(enum.Enum):
-    DATE_TIME = enum.auto()
-    INT_RANGE = enum.auto()
-    STRING_COMPARISON = enum.auto()
-    LIST = enum.auto()
-    NOT_LIST = enum.auto()
+class Component:
+    """
+    WARNING: This class isn't supposed to be instantiated outside
+             the class `ScrapFilter`.
 
-    info = {
-        DATE_TIME: '',
-        INT_RANGE: '',
-        STRING_COMPARISON: '',
-        LIST: ''
-    }
-
-class ScrapComponent:
+    This class defines a component that can be found in a target site.
+    For example, a user submission, a user profile, and a comment can
+    be manifested as a component. Each component its attribute(s). 
+    Attributes are defined in the class `Attribute`.
+    """
    
-    group = None # The group that contain this scrap component.
-    symbol = ''
+    scrape_filter  = None # The scrape filter 
+                          # that contain this scrap component.
     name = ''
     info = ''
+    attr = {}
+    flag = False
 
-    # @param name: Name of the scrap component.
-    # @param symbol: Symbol of the scrap component.
-    # @param info: Information about the scrap component.
-    #
-    # The symbol must be an alphabetical character, and the name
-    # must consists of more than one characters.
-    def __init__(self, name, symbol=None, info=''):
-        self.options = {}
+    def __init__(self, scrape_filter, name, info=''):
+        """
+        @param name: The unique name of the component.
+        @param info: Information about the component.
 
-        # Symbol must be an alphabetical character.
-        if symbol:
-            if len(symbol) != 1 or not symbol.isalpha():
-                logging.error(
-                    'Scrap option symbol for the option %s::%s '\
-                    'must be an alphabet character.' 
-                    % (self.name, name)
-                )
-                raise
+        Create an instance of the `Component` class.
+        """
+        if not ScrapeFilter.is_name_valid(name):
+            ScrapeFilter.throw_invalid_name_error(name)
 
-        if len(name) <= 1:
-            logging.error(
-                'Scrap option name for the option %s::%s '\
-                'must consist of more than 1 characters.'
-                % (self.name, name)
-            )
-            raise
-
-        self.symbol = symbol
+        self.scrape_filter = scrape_filter
         self.name = name
         self.info = info
+        self.attr = {}
+        self.flag = False
 
-    # @param name: Name of the scrap option.
-    # @param value_type: The value type of the scrap option.
-    #                    See ValueType class.
-    # @param symbol: The symbol used for shorthand reference of this
-    #                scrap option.
-    # @param info: Developer defined info about the scrap option.
-    #
-    # The symbol must be an alphabetical character, while the name
-    # must have more than 1 character.
-    def add_option(self, name, value_type, symbol=None, info=''):
-        if symbol:
-            if len(symbol) != 1 or not symbol.isalpha():
-                logging.error(
-                    'Scrap option symbol for the option %s::%s '\
-                    'must be an alphabet character.' 
-                    % (self.name, name)
-                )
-                raise
-        if len(name) <= 1:
-            logging.error(
-                'Scrap option name for the option %s::%s '\
-                'must consist of more than 1 characters.'
-                % (self.name, name)
-            )
-            raise
+    def add(self, name, info=''):
+        """
+        @param name: The name of the attribute.
+        @param info: The information about the attribute.
 
-        opt = ScrapOption(name, value_type, symbol=symbol, info=info)
-        opt.set_component(self)
-        if symbol:
-            self.options[symbol] = opt
-        self.options[name] = opt
+        Add an attribute to this component.
+        """
+        
+        if name in self.attr:
+            self.__throw_attr_name_error(name)
+    
+        self.attr[name] = Attribute(self, name, info)
 
-    def set_group(self, group):
-        self.group = group
-
-    def get(self, key):
+    def get(self, name):
+        """
+        @param name: The name of the attribute to get.
+        """
         try:
-            return self.options[key]
+            return self.attr[name]
         except KeyError:
-            logging.error(
-                'The scrap component \'%s\' has no option with the name or '\
-                'symbol \'%s\'. Please run "dmine -F %s" to '\
-                'see the list of available scrap components and their options.'
-                % (self.name, key, self.group.spider_name)
-            )
-            raise
+            self.__throw_get_attr_error(name)
 
-    def contain(self, key):
-        return (key in self.options)
+    def should_scrape(self):
+        self.scrape_filter.run_interpreter()
+        return self.flag
 
-    # @param key: The name or symbol of the scrap option.
-    # @param target: The target of the scrap option to be evaluated or
-    #                compared with user's scap option value.
-    def set_target(self, key, target):
-        opt = self.get(key)
-        opt.target = value
+    def set_attr_values(self, **attributes):
+        """
+        @param **attributes: A dictionary of attributes where the attribute's
+                             name is the key and its attribute value is 
+                             the value corresponding to the dictionary key.
+        """
+        for k in attributes:
+            self.get(k).value = attributes[k]
 
-    # Same as set_target(self, key, target), but allow for multiple
-    # assignment of target to the scrap options. The keywords of
-    # **kwargs are the name/symbol of the scrap option, and its
-    # values are its targets.
-    def set_targets(self, **kwargs):
-        for k in kwargs:
-            opt = self.get(k)
-            opt.target = kwargs[k]
-            Interpreter.feed(opt, opt.target)
+    def __throw_attr_name_error(self, name):
+        msg = 'An attribute in the component \'%s\' with '\
+              'the name \'%s\' already exists.'\
+              % (self.name, name)
+        logging.error(msg)
+        raise ValueError(msg)
 
-    # Returns False if at least one of this scrap component's option
-    # is undesirable. Otherwise, return True. That is, if all of the
-    # scrap options meet its requirement, return True.
-    def should_scrap(self):
-        for k in self.options:
-            if not self.options[k].should_scrap():
-                return False
-        return True
+    def __throw_get_attr_error(self, name):
+        msg = 'The component \'%s\' has no attribute with the name \'%s\''\
+               % (self.name, name)
+        logging.error(msg)
+        raise KeyError(msg)
 
-class ScrapOption:
+class Attribute:
+    """
+    WARNING: This class isn't supposed to be instantiated outside the
+             `Component` class.
 
-    component = None # The component that contain this scrap option.
-    symbol = ''
+    This class defines an attribute of a component. See `Component` class.
+    """ 
+
+    component = None
     name = ''
     info = ''
-    target = ''
-    value = '*'
-    value_type = ValueType.STRING_COMPARISON
-    is_key_subbed = False
+    value = ''
 
-    def __init__(self, name, value_type, symbol=None, info=''):
-        self.symbol = symbol
-        self.name = name
-        self.value_type = value_type
-        self.info = info
-        self.target = ''
+    def __init__(self, component, name, info=''):
+        """
+        @param name: The name of this attribute.
+        @param info: The information pertaining this attribute.
 
-    def set_component(self, component):
+        Create an instance of `Attribute` class.
+        """
+        if not ScrapeFilter.is_name_valid(name):
+            ScrapeFilter.throw_invalid_name_error(name)
+
         self.component = component
+        self.name = name
+        self.info = info
+        self.value = ''
 
-    # Get the raw string value of this scrap option. The raw
-    # value is the string value that appear in the scrap filter 
-    # untouched.
-    def raw_value(self):
-        val = ''
-
-        # Try to capture the value using this scrap option's symbol.
-        # If that doesn't work, try using the name instead.
-        try:
-            pattern = '(?<=\/%s:)(.*?)(?=(\/[a-zA-Z\-]:|}))' % self.symbol
-            val = re.search(pattern, self.component.group.scrap_filter).group(0)
-        except AttributeError:
-            logging.debug(
-                'Unable to find the value of the scrap option '\
-                '%s::%s.'
-                % (self.component.name, self.name)
-            )
-            try:
-                pattern = '(?<=\/%s:)(.*?)(?=(\/[a-zA-Z\-]:|}))' % self.name
-                val = re.search(pattern, self.component.group.scrap_filter)\
-                        .group(0)
-            except AttributeError:
-                raise
-    
-        return val.strip()
-
-    def set_target(self, target):
-        self.target = target
-    
-    # @param target: The scraped target of type string.
-    #
-    # The `target` parameter is optional to allow the spider developer
-    # to set this scrap option's target before calling `should_()`
-    def should_scrap(self, target=None):
-        # The default is no filter.
-        if self.value == '*': 
-            return True
-
-        if target:
-            out = Parser.compile(self, target)
-        else:
-            if not self.target:
-                logging.error(
-                    'The target for the scrap option %s::%s is not '\
-                    'set.'
-                    % (self.component.name, self.name)
-                )
-                raise
-            out = Parser.compile(self, self.target)
-
-        return out
-    
-class ComponentGroup:
+class ScrapeFilter:
     """
-    A component group holds all the spider's scrap components together.
+    The scrap filter contains several components that can be found in the
+    target site that is to be scraped. It is from the object of this class
+    that the components are created.
     """
 
-    components = {}
-    scrap_filter = ''
+    comp = {}
     spider_name = ''
+    sfl_input = ''
     
-    def __init__(self, scrap_filter, spider_name=''):
-        self.scrap_filter = scrap_filter
+    def __init__(self, sfl_input, spider_name=''):
+        """
+        @param sfl_input: The scrape filter language string input.
+        @param spider_name: The name of the spider that employ this scrape
+                            filter.
+
+        Create an instance of `ScrapFilter` class.
+        """
         self.spider_name = spider_name
+        self.sfl_input = sfl_input
 
-    def add(self, component):
-        if component.symbol in self.components:
-            loggging.error(
-                'A component with the symbol %s already exists.'
-                % component.symbol
-            )
-            raise
-        if component.name in self.components:
-            loggging.error(
-                'A component with the name %s already exists.'
-                % component.symbol
-            )
-            raise
+    def add(self, name, info):
+        """
+        @param name: The name of the component.
+        @param info: The information pertaining the component.
+        """
+        if name in self.comp:
+            ComponentGroup.__throw_comp_name_error(name)
+        self.comp[name] = Component(self, name, info)
 
-        if component.symbol:
-            self.components[component.symbol] = component
-        self.components[component.name] = component
-        component.set_group(self)
+    def is_name_valid(name):
+        """
+        @param name: The name of a component or attribute.
 
-    def get(self, key):
+        The name of a component or an attribute can contain only
+        any alphabetical, numerical characters and underscores,
+        but its first character must not be numeric.
+
+        This method returns True if the name pattern match with the
+        above description. Otherwise, this method will return false.
+
+        """
+        return re.match('^[_a-zA-Z][_a-zA-Z0-9]+$', name)
+
+    def __throw_comp_name_error(name):
+        msg = 'The component with the name \'%s\' already exists.'\
+              % name
+        logging.error(msg)
+        raise ValueError(msg)
+
+    def __throw_not_exist_error(name):
+        msg = 'No component named \'%s\' exist.' % name
+        logging.error(msg)
+        raise KeyError(msg)
+
+    def throw_invalid_name_error(name):
+        msg = 'The of the component or attribute \'%s\' is invalid.' % name
+        logging.error(msg)
+        raise NameError(name)
+
+    def get(self, name):
+        """
+        @param name: The name of the component to get.
+
+        Returns a component with the name `name`. If the name doesn't
+        exists, an error will be thrown.
+        """
         try:
-            return self.components[key]
-        except KeyError as e:
-            logging.error(
-                'No component with the name or symbol \'%s\' exist. '\
-                'Please run "dmine -F %s" to see the list '\
-                'of available scrap components and their options.'
-                % (key, self.spider_name)
-            )
-            raise
+            return self.comp[name]
+        except:
+            ScrapeFilter.__throw_not_exist_error(name)
 
-    # Check if a key (name or symbol) representing a scrap component 
-    # exists in this component group.
-    def contain(self, key):
-        return (key in self.components)
-
-    # Returns a list of scrap components and its options
-    # in the form of:
-    # my_component_name_1 (my_component_symbol_1):
-    #    my_option_name_1 (my_option_symbol_1) [my_option_type_1]
-    #    my_option_name_2 (my_option_symbol_2) [my_option_type_2]
-    #           .
-    #           .
-    # .
-    # .
+    def run_interpreter(self):
+        Interpreter.feed(self)
+        scrape_flags = Interpreter.run(self.sfl_input)
+        for comp_name in scrape_flags:
+            self.comp[comp_name].flag = scrape_flags[comp_name]
+    
     def detail(self):
+        """
+        Returns a multiline string that represents the components and
+        its attributes created in this scrap filter.
+        """
         lines = ''
         for k in self.components:
             if len(k) != 1:
                 name = k
-                symbol = self.get(k).symbol
                 info = self.get(k).info
                 if info != '':
                     info = '\n' + info
-                component = '%s (%s):%s\n' % (name, symbol, info)
+                component = '%s: %s\n' % (name, info)
                 lines += component
                 for j in self.components[k].options:
                     if len(j) != 1:
                         name = j
-                        symbol = self.get(k).get(j).symbol
-                        if symbol is None:
-                            symbol = '(No symbol)'
-                        val_type = str(self.get(k).get(j).value_type)
-                        val_type = val_type[val_type.find('.') + 1:]
                         info = self.get(k).get(j).info
                         if info == '':
                             info = '(No info available)'
-                        option =  '    %s (%s): \n' % (name, symbol)
-                        option += '        Value type : %s\n' % val_type
-                        option += '        Info       : %s\n' % info
+                        option =  '    %s: %s' % (name, symbol)
                         lines += option
                 lines += '\n'
         return lines
 
 class Utils:
+    """
+    This class contains utility methods, and should not be instantiated.
+    """
 
     # @param data: The dict to write to the file.
     # @param filename: The filename of the file.
@@ -516,14 +445,16 @@ class Spider:
     name = ''
     args = None
 
-    # Initialize the spider class. When a spider object
-    # is called to be initialized, its name attribute is
-    # checked for duplicate with other spider object.
     def __init__(self):
-        component_group = None
-        input_group = None
-        name = ''
-        args = None
+        """
+        Initialize the spider class. When a spider object (which inherits
+        this class) is initialized, its name attribute is checked whether
+        its name is unique or not.
+        """
+        self.scrape_filter = None
+        self.input_group = None
+        self.name = ''
+        self.args = None
 
         # Check for duplicate name.
         for c in Spider.__subclasses__():
@@ -538,13 +469,11 @@ class Spider:
                 )
                 raise
 
-    # This method must be defined by the child classes
-    # to define their scrap filter component group.
     @abstractmethod
-    def setup_filter(self, component_group):
+    def setup_filter(self, scrape_filter):
         # TODO
-        # Overwritten by inheritor. 
-        # Spider dev define his scrap filter here.
+        # Overwritten by inheritor.
+        # Spider dev define scrape filter here.
         pass
 
     @abstractmethod

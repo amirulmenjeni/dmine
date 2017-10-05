@@ -5,80 +5,35 @@
 import sys
 import praw
 import logging
-from dmine import Spider, ScrapComponent, ValueType, Input, InputType,\
-                  ComponentLoader
+from dmine import Spider, Input, InputType, ComponentLoader
 
 class RedditSpider(Spider):
     r = None # Reddit praw instance.
     name = 'reddit'
 
-    def setup_filter(self, component_group):
-        # Add scrap components.
-        component_group.add(
-            ScrapComponent(
-                'post',
-                symbol='p', 
-                info='A user submitted content to a subreddit '\
-                     '(i.e. submission). Not to be confused with a comment.'
-            )
-        )
-        component_group.add(
-            ScrapComponent(
-                'comment', 
-                symbol='c',
-                info='A user submitted comment to a particular post.'
-            )
-        )
-        component_group.add(
-            ScrapComponent(
-                'user',
-                symbol='u',
-                info='A reddit user (redditor).'
-            )
-        )
+    def setup_filter(self, sf):
+        """
+        Scrape filter needs to be set up here.
+        """
 
-        # Add options to the 'post' component.
-        p = component_group.get('post')
-        p.add_option(
-            'title', ValueType.STRING_COMPARISON, symbol='t',
-            info='The title of the post.'
-        )
-        p.add_option(
-            'score', ValueType.INT_RANGE, symbol='s',
-            info='The score of the post (i.e. upvotes/downvotes).'
-        )
-        p.add_option(
-            'subreddit', ValueType.STRING_COMPARISON, symbol='r',
-            info='The subreddit where the post is posted from.'
-        )
-        p.add_option(
-            'timespan', ValueType.DATE_TIME, symbol='e',
-            info='The timespan in which the post is posted. If the specified '\
-                 'timespan is greater than the post\'s timespan, then '\
-                 'this scrap option will vote to scrape the post.'
-        )
-        p.add_option(
-            'allow-subreddit', ValueType.LIST, symbol='A',
-            info='Any post posted from any subreddit in this list will '\
-                 'be scraped, but not other post.'
-        )
-        p.add_option(
-            'block-subreddit', ValueType.NOT_LIST, symbol='B',
-            info='Any post posted from any subreddit in this list will '\
-                 'not be scraped, but other posts will.'
-        )
+        # Create components.
+        sf.add('post', info='A user post or submission')
+        sf.add('comment', info='A user comment with respect to a post.')
 
-        # Add options to the 'comment' component.
-        c = component_group.get('comment')
-        c.add_option('body', ValueType.STRING_COMPARISON, symbol='t',
-                     info='The comment\'s body.')
-        c.add_option('score', ValueType.INT_RANGE, symbol='s',
-                     info='The comment\'s score')
+        # Add post attributes.
+        sf_post = sf.get('post')
+        sf_post.add('score', info='The upvote/downvote score of the post.')
+        sf_post.add('title', info='The title of the post.')
+        sf_post.add('subreddit', 
+                    info='The subreddit to which the post is uploaded.')
+        sf_post.add('author', info='The redditor who posted this post.')
 
-        # Add options to the 'user' component.
-        u = component_group.get('user')
-        u.add_option('name', ValueType.STRING_COMPARISON, symbol='n',
-                     info='The username of a reddit user.')
+        # Add comment attributes.
+        sf_comment = sf.get('comment')
+        sf_comment.add('score', 
+                       info='The upvote/downvote score of the comment.')
+        sf_comment.add('body', info='The comment text body.')
+        sf_comment.add('author', info='The redditor who posted this comment.')
 
     def setup_input(self, input_group):
         input_group.add_input(
@@ -133,7 +88,23 @@ class RedditSpider(Spider):
             )
         )
 
-    def start(self, com, inp):
+    def start(self):
+
+        """
+        Starts the spider.
+        """
+        ##################################################
+        # Get the scrape filter object of this spider.
+        ##################################################
+        sf = self.scrape_filter
+        sf_post = sf.get('post')
+        sf_comment = sf.get('comment')
+
+        ##################################################
+        # Get the scrape input object of this spider.
+        ##################################################
+        inp = self.input_group
+
         ##################################################
         # Initialize PRAW
         ##################################################
@@ -156,35 +127,24 @@ class RedditSpider(Spider):
         ##################################################
         # Do spidery deeds.
         ##################################################
-        p = com.get('post')
-        c = com.get('comment')
-        counter  = 0
 
         # Get the sections from which the post appear in each
         # subreddit.
         sections = self.get_sections(inp)
 
-        post_limit = inp.get('post-limit').val()
-        comment_limit = inp.get('comment-limit').val()
-        post_count = 0
-        comment_count = 0
-
         for section in sections:
             for post in section:
                 # Assign each component's attribute.
-                p.set_targets(**{
-                    'title': post.title,
-                    'score': post.score,
-                    'subreddit': str(post.subreddit),
-                    'allow-subreddit': str(post.subreddit),
-                    'block-subreddit': str(post.subreddit)
-                })
+                sf_post.set_attr_values(
+                    title=post.title,
+                    score=int(post.score),
+                    subreddit=str(post.subreddit),
+                    author=str(post.author)
+                )
 
                 # Scrape the post if it pass the filter.
-                if post_count < post_limit and  p.should_scrap():
-                    post_count += 1
+                if sf_post.should_scrape():
                     yield ComponentLoader('post', {
-                        'post_count': post_count,
                         'post_id': post.id,
                         'title': post.title,
                         'subreddit': str(post.subreddit),
@@ -192,37 +152,21 @@ class RedditSpider(Spider):
                         'author': str(post.author)
                     })
 
-                # Skip comments if the user demands it.
-                if inp.get('skip-comments').val():
-                    continue
-
-                # Skip scanning comments when limit reached.
-                if comment_count >= comment_limit:
-                    continue
-
                 # Scraping (most if not all) comments of each post.
-                post.comments.replace_more(limit=0)
-                for comment in post.comments.list():
-                    c.set_targets(**{
-                        'body': comment.body,
-                        'score': comment.score
-                    })
-
-                    if comment_count < comment_limit and c.should_scrap():
-                        comment_count += 1
-                        yield ComponentLoader('comment', {
-                            'comment_count': comment_count,
-                            'post_id': post.id,
-                            'comment_id': comment.id,
-                            'author': str(comment.author),
-                            'body': comment.body,
-                            'score': str(comment.score)
-                        })
-
-                    # Exit when limit is reached.
-                    if comment_count >= comment_limit and\
-                       post_count >= post_limit:
-                        return
+#                post.comments.replace_more(limit=0)
+#                for comment in post.comments.list():
+#                    sf_comment.set_attr_values(
+#                        body=comment.body,
+#                        score=comment.score
+#                    )
+#
+#                    if sf_comment.should_scrape():
+#                        yield ComponentLoader('comment', {
+#                            'comment_id': comment.id,
+#                            'author': str(comment.author),
+#                            'body': comment.body,
+#                            'score': str(comment.score)
+#                        })
 
     # Get which section(s) to scrape the submissions from.
     def get_sections(self, inp):

@@ -18,7 +18,6 @@ Reference materials:
 
 import re
 import logging
-import pprint
 
 class Lexer:
 
@@ -259,13 +258,6 @@ class Parser:
         self.tokens = tokens
         self.curr = self.tokens[0]
         self.prev = (None, None)
-
-        print('==============================')
-        print('Number of tokens:', len(self.tokens))
-        while self.__nextsym():
-            print(self.tnum, self.curr)
-        print('==============================')
-        self.__resetsym()
     
     """
     Updates `tnum`, `curr` and `prev`. 
@@ -469,13 +461,12 @@ class Evaluator:
         @param idns: The list of dict of identifiers.
         """
         res = []
-        print(idns)
         return Evaluator.parse_node(pt, idns)
 
     def parse_node(node, idns, scope=''):
         """
         @param node: A node in a parse tree.
-        @param idns: The list of identifier dicts.
+        @param idns: The list of Component class from sfl module.
         @param scope: This should be left untouched at first called.
                       This parameter is used internally in this method
                       to keep track and check the scope of the scrap 
@@ -552,8 +543,15 @@ class Evaluator:
                     scope = ''
 
     def __operate(n):
-        print('OPERATING:', n.symbol, n.value,\
-              [(c.symbol, c.value) for c in n.children])
+        """
+        @param n: A node of a parse tree.
+
+        Do the operations pernaining the children of the node n.
+        This method only changes the structure of node n, and does not
+        return anything.
+        """
+#        print('OPERATING:', n.symbol, n.value,\
+#              [(c.symbol, c.value) for c in n.children])
 
         # If a node has only one child (i.e. no evaluation takes place),
         # then just take the child's value.
@@ -568,13 +566,11 @@ class Evaluator:
         while i < len(n.children):
 
             opt = ''
-            j = 0
+            j = 0 # Used to calculate the char-length of the opterator.
             res = True
-            print('i:', i)
 
             while n.children[i].symbol in opts:
                 opt += n.children[i].symbol
-                print('opt:', opt)
                 i += 1
                 j += 1
                 
@@ -586,7 +582,6 @@ class Evaluator:
                 if i - j - 1 >= 0:
                     left = n.children[i - j - 1].value
                 right = n.children[i].value
-                print('left opt right:', left, opt, right)
                 operate = {
                     '<': lambda x, y: x < y,
                     '<=': lambda x, y: x <= y,
@@ -600,21 +595,26 @@ class Evaluator:
                     'or': lambda x, y: x or y,
                     '(': lambda x, y: y
                 }
-                res = operate[opt](left, right)
-                print('res:', res)
+                try:
+                    res = operate[opt](left, right)
+                except TypeError as e:
+                    Evaluator.__throw_eval_error(
+                        str(e) + '. left operand is \'%s\', and '\
+                        'the right operand is \'%s\'.'\
+                        % (left, right)
+                    )
 
             if res:
                 i += 1
             else:
                 break
 
-        print('returned res:', res)
         n.children = []
         n.value = res
             
     def __get_idn_val(idns, comp, attr):
         for idn in idns:
-            if idn.key == comp:
+            if idn.name == comp:
                 return idn[attr]
         Evaluator.__throw_eval_error(
             'Attribute not found: %s' % attr
@@ -634,7 +634,7 @@ class Evaluator:
         # checking whether the component is defined.
         if attribute is None:
             for idn in idns:
-                if component == idn.key:
+                if component == idn.name:
                     return True
             return False
 
@@ -652,37 +652,69 @@ class Evaluator:
 
 class Interpreter:
 
-    # @param scomp: The symbol of the scrap component.
-    # @param sattr: The symbol of the component's attribute.
-    #
-    # Feed this interpreter the identifiers and its values.
-    def feed(scomp, sattr, value):
-        pass
+    identifiers = []
 
-    def run(line):
+    def feed(scrape_filter):
+        """
+        @param scrape_filter: A scrape filter object.
+        
+        Feed this interpreter the identifiers and its values.
 
-        # For testing purpose.
-        post = Component('post')
-        post['title'] = 'This cat is funny'
-        post['score'] = 99
-        comment = Component('comment')
-        comment['body'] = 'No it isn\'t'
-        comment['score'] = -19
-        idns = [post, comment]
+        """
+        Interpreter.identifiers = []
+        for comp_name in scrape_filter.comp:
+            component = Component(comp_name)
+            comp = scrape_filter.comp
+            for attr_name in comp[comp_name].attr:
+                attr = comp[comp_name].attr
+                component[attr_name] = attr[attr_name].value
+            Interpreter.identifiers.append(component)
+#        print('Fed:', Interpreter.identifiers)
 
-        tokens = Lexer.lexer(line)
+    def run(code):
+        """
+        @param code: The SFL code.
+
+        Run the SFL code. After the interpreter runs the code and
+        evaluate it, a dictionary of components and its boolean value
+        will be returned. The boolean value for each component dictates
+        whether or not a particular component should be scraped or not.
+
+        For example, if we have the components named `post` and `commment`,
+        then this method may return the dictionary 
+        
+            {'post': True, 'comment': False}
+
+        if the SFL code computed that the post should be scraped while the
+        comment component shouldn't be scraped.
+
+        If no code is give (i.e. no filter applied), then all the components
+        should be scraped. Any component that does not show up in the filter
+        code will automatically be flagged as True.
+        """
+#        # For testing purpose.
+#        post = Component('post')
+#        post['title'] = 'This cat is funny'
+#        post['score'] = 99
+#        comment = Component('comment')
+#        comment['body'] = 'No it isn\'t'
+#        comment['score'] = -19
+#        idns = [post, comment]
+
+        tokens = Lexer.lexer(code)
         parse_tree = Parser(tokens).parse()
-        print('====PARSE TREE====')
-        print(parse_tree) 
-        print('====EVALUATORZ====')
-        return Evaluator.eval(parse_tree, idns)
+        out = Evaluator.eval(parse_tree, Interpreter.identifiers)
+
+        # Flag untouched components as True.
+        for k in Interpreter.identifiers:
+            if k.name not in out:
+                out[k.name] = True
+        return out
 
 class ParseTree:
 
     symbol = ''
     value = ''
-    left = None
-    right = None
     parent = None
     children = []
    
@@ -704,25 +736,13 @@ class ParseTree:
         self.children.append(new_child)
         return new_child
 
-    def setl(self, sym, val):
-        self.left = ParseTree(sym, val)
-        self.left.parent = self
-        return self.left
-
-    def setr(self, sym, val):
-        self.right = ParseTree(sym, val)
-        self.right.parent = self
-        return self.right
-
     """
     Returns the representation of this ParseTree. It will be a pretty
     printed string.
     """
     def __repr__(self, depth=4):
         lr = ''
-        if self.left or self.right:
-            lr = str((self.left, self.right))
-        s = [str('[%s] %s %s' % (self.symbol, self.value, lr))]
+        s = [str('[%s] %s' % (self.symbol, self.value))]
         for child in self.children:
             s.extend(['\n', ' ' * (depth + 1), child.__repr__(depth + 4)])
         return ''.join(s)
@@ -746,23 +766,26 @@ class Component(dict):
 
     attr_dict = {}
 
-    def __init__(self, key):
-        self.key = key
+    def __init__(self, name):
+        """
+        @param name: The name of this component.
+        """
+        self.name = name
         self.attr_dict = {}
-        self.__dict__[self.key] = self.attr_dict
+        self.__dict__[self.name] = self.attr_dict
 
     def has_attr(self, attr):
         return attr in self.attr_dict
 
     def __setitem__(self, attribute, value):
         self.attr_dict[attribute] = value
-        self.__dict__[self.key] = self.attr_dict
+        self.__dict__[self.name] = self.attr_dict
 
     def __getitem__(self, attr):
         return self.attr_dict[attr]
 
     def __repr__(self):
-        return "%s::%s" % (self.key, self.attr_dict)
+        return "%s::%s" % (self.name, self.attr_dict)
 
     def __str__(self):
         return repr(self)

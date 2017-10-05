@@ -9,8 +9,7 @@ import threading
 import time
 import logging
 import math
-from dmine import Utils, Spider, ComponentGroup, InputGroup,\
-                  ComponentLoader, Reporter
+from dmine import Utils, Spider, ScrapeFilter, InputGroup, ComponentLoader
 from spiders import *
 
 def main():
@@ -22,9 +21,9 @@ def main():
                 epilog='Check out our github page at http://github.com'\
                        '/amirulmenjeni/dmine.'
              )
-    parser.add_argument('-f', '--filter', default='*', 
+    parser.add_argument('-f', '--filter', default='', 
                         metavar='<scrap_filter_string>',
-                        help='Spider scrap filter string.')
+                        help='Scrape Filter Language string.')
 
     parser.add_argument('-i', '--input', 
                         metavar='<input_string>',
@@ -179,26 +178,24 @@ def main():
 def run_spider(instance, args):
     timeout = time.time() + args.timeout
 
-    # Set up component group.
-    component_group = ComponentGroup(
+    # Set up scrape filter.
+    scrape_filter = ScrapeFilter(
                           args.filter, 
                           spider_name=instance.name
                       )
-    instance.setup_filter(component_group)
+    instance.scrape_filter = scrape_filter
+    instance.setup_filter(scrape_filter)
 
     # Set up input group.
     input_group = InputGroup(
                     args.spider_input, 
                     spider_name=instance.name
                   )
+    instance.input_group = input_group
     instance.setup_input(input_group)
 
-#    # Parse the component group and input group.
-#    Parser.parse_scrap_filter(component_group)
-#    Parser.parse_input_string(input_group)
-
     # Start spider.
-    results = instance.start(component_group, input_group)
+    results = instance.start()
 
     if results is None:
         logging.warning('No data is generated from %s.start().' %
@@ -300,9 +297,9 @@ def print_filter_detail(spider_name, spider_classes):
     for c in spider_classes:
         if c.name == spider_name:
             instance = c()
-            instance.component_group = ComponentGroup('') # Don't need filter
+            instance.scrape_filter = ScrapeFilter('') # Don't need filter
                                                           # string for this.
-            instance.setup_filter(instance.component_group)
+            instance.setup_filter(instance.scrape_filter)
             print(instance.component_group.detail())
             found = True
             break
