@@ -345,22 +345,20 @@ class ScrapeFilter:
         its attributes created in this scrap filter.
         """
         lines = ''
-        for k in self.components:
+        for k in self.comp:
             if len(k) != 1:
                 name = k
                 info = self.get(k).info
-                if info != '':
-                    info = '\n' + info
                 component = '%s: %s\n' % (name, info)
                 lines += component
-                for j in self.components[k].options:
+                for j in self.comp[k].attr:
                     if len(j) != 1:
                         name = j
                         info = self.get(k).get(j).info
                         if info == '':
                             info = '(No info available)'
-                        option =  '    %s: %s' % (name, symbol)
-                        lines += option
+                        attribute =  '    %s: %s\n' % (name, info)
+                        lines += attribute
                 lines += '\n'
         return lines
 

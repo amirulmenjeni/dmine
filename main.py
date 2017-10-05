@@ -300,7 +300,7 @@ def print_filter_detail(spider_name, spider_classes):
             instance.scrape_filter = ScrapeFilter('') # Don't need filter
                                                           # string for this.
             instance.setup_filter(instance.scrape_filter)
-            print(instance.component_group.detail())
+            print(instance.scrape_filter.detail())
             found = True
             break
     if not found:
