@@ -285,6 +285,14 @@ class Parser:
             return True
         return False
 
+    def __accepts(self, sym, *syms):
+        sym_list = [sym]
+        sym_list.extend(syms)
+        if self.curr[0] in sym_list:
+            self.__nextsym()
+            return True
+        return False
+
     """
     @param symbol: The symbol of the next token that is expected 
                    to be found after the current token.
@@ -346,7 +354,7 @@ class Parser:
                 self.__expect('}')
                 node.add_child(self.prev[0], self.prev[1])
             else:
-                node.add_child(self.prev[0], self.prev[1])
+                storable = node.add_child(self.prev[0], self.prev[1])
                 self.__expect('=')
                 node.add_child(self.prev[0], self.prev[1])
                 if self.__accept('string')\
@@ -354,7 +362,7 @@ class Parser:
                 or self.__accept('boolean'):
                     node.add_child(self.prev[0], self.prev[1])
                 else:
-                    self.__throw_assignment_error(self.prev[1])                    
+                    self.__throw_assignment_error(storable.value)                    
 
     """
     The eval node method. Note that the EBNF expression for the expression
@@ -434,8 +442,8 @@ class Parser:
         raise SyntaxError(msg)
 
     def __throw_assignment_error(self, token):
-        msg = 'The storable token \'%s\' was expecting an integer '\
-              'or a string value.' % token
+        msg = 'The storable token \'%s\' was expecting an integer, '\
+              'a string, or a boolean value.' % token
         logging.error(msg)
         raise SyntaxError(msg)
 
