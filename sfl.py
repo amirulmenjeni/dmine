@@ -17,6 +17,7 @@ Reference materials:
 """
 
 import re
+import copy
 import logging
 
 class Lexer:
@@ -144,7 +145,7 @@ class Lexer:
             # A token of type number have all digits for its
             # chars. So, 123abc is not an integer.
             elif re.match('[\-0-9]', line[i]):
-                number, i = Lexer.__scan(i, line, '[\-.0-9]') 
+                number, i = Lexer.__scan(i, line, '[\.0-9]') 
                 if number:
                     if Lexer.__is_valid_number(number):
                         tokens.append(('number', number))
@@ -152,6 +153,21 @@ class Lexer:
                         Lexer.__throw_token_error(number)
                 else:
                     Lexer.__throw_token_error(number)
+
+            # TYPE: storable
+            #
+            # A token of type storable must starts with the
+            # `$` character. Then the following characters
+            # follows the identifier pattern rule.
+            elif line[i] == '$':
+                storable, i = Lexer.__scan(i, line, '[\_\$a-zA-Z0-9]')
+                if storable:
+                    if Lexer.__is_storable_valid(storable):
+                        tokens.append(('storable', storable))
+                    else:
+                        Lexer.__throw_token_error(storable)
+                else:
+                    Lexer.__throw_token_error(storable)
 
             # Weird token.
             else:
@@ -173,8 +189,12 @@ class Lexer:
 
     def __is_operator_valid(operator):
         valid_operators = ['(', ')', '{', '}', '<', '<=', '>', '>=',\
-                           '==', '!=', 'and', 'or', 'not', 'in'] 
+                           '==', '!=', '=', 'and', 'or', 'not', 'in'] 
         return operator in valid_operators
+
+    def __is_storable_valid(storable):
+        regex = '^\$[\_a-zA-Z0-9]+$'
+        return re.match(regex, storable) is not None
 
     def __is_whitespace(c):
         return c == ' ' or c == '\t'
@@ -187,12 +207,22 @@ class Lexer:
         return re.match('[a-zA-Z0-9_]', line[i]) is not None
 
     def __scan(i, line, regex_pattern):
+        """
+        @param i: The position of the char in the string line
+                  to start scan.
+        @param line: The input stream string.
+        @param regex_pattern: The pattern in which to scan.
+
+        Scans the line from the character at position `i` until
+        either when `i` reached the end of the string `line` or
+        when `line[i]` does not match the given `regex_pattern`.
+        """
         s = ''
         while i < len(line) and re.match(regex_pattern, line[i]):
             s += line[i]
             i += 1
 
-        # Test the next char (if possible), whether or it
+        # Test the next char (if possible), whether or not it
         # follows the same regex pattern as those chars collected
         # in `s`. If possible, and the next char does not follow
         # the same pattern, then return None.
@@ -352,21 +382,37 @@ class Parser:
     The expression node method. Note that the EBNF expression
     for the expression is:
 
-        expr ::= { identifier "{" eval "}"  }
+        expr ::= 
+            { 
+                ( 
+                    { identifier "{" eval "}"  }  | 
+                    { storable = ( "string" | "integer" ) }
+                ) 
+            }
     """
     def __expr(self, node):
-        self.__expect('identifier')
-        # Add the identifier (scrape component),
-        # and expect "{"
-        node.add_child(self.prev[0], self.prev[1]) 
-        self.__expect("{")
-        node.add_child(self.prev[-1], self.prev[1])
 
-        # EVAL production.
-        self.__eval(node.add_child('EVAL', 'NODE'))
+        while self.__accept('identifier') or self.__accept('storable'):
+            if self.prev[0] == 'identifier':
+                # Add the identifier (scrape component),
+                # and expect "{"
+                node.add_child(self.prev[0], self.prev[1]) 
+                self.__expect('{')
+                node.add_child(self.prev[0], self.prev[1])
 
-        self.__expect("}")
-        node.add_child(self.prev[0], self.prev[1])
+                # EVAL production.
+                self.__eval(node.add_child('EVAL', 'NODE'))
+
+                self.__expect('}')
+                node.add_child(self.prev[0], self.prev[1])
+            else:
+                node.add_child(self.prev[0], self.prev[1])
+                self.__expect('=')
+                node.add_child(self.prev[0], self.prev[1])
+                if self.__accept('string') or self.__accept('number'):
+                    node.add_child(self.prev[0], self.prev[1])
+                else:
+                    self.__throw_assignment_error(self.prev[1])                    
 
     """
     The eval node method. Note that the EBNF expression for the expression
@@ -445,13 +491,13 @@ class Parser:
         logging.error(msg)
         raise SyntaxError(msg)
 
-class Evaluator:
+    def __throw_assignment_error(self, token):
+        msg = 'The storable token \'%s\' was expecting an integer '\
+              'or a string value.' % token
+        logging.error(msg)
+        raise SyntaxError(msg)
 
-    def __init__(self, typ, val):
-        self.typ = typ
-        self.val = val
-        self.left = None
-        self.right = None
+class Evaluator:
 
     def eval(pt, idns):
         """
@@ -459,8 +505,10 @@ class Evaluator:
                    from the parser.
         @param idns: The list of dict of identifiers.
         """
-        res = []
-        return Evaluator.parse_node(pt, idns)
+        out = Evaluator.parse_node(pt, idns)
+        if out is None:
+            out = {}
+        return out
 
     def parse_node(node, idns, scope=''):
         """
@@ -473,24 +521,28 @@ class Evaluator:
 
         Simply put, given parse tree from the following scrap filter input:
         
-            post { score > 0 } and comment { 0 < score < 100 }
+            post { score > 0 } comment { 0 < score < 100 } $my_var = 123
 
         If the post's score is greater than zero, but the comment's score
         is greater than 100, this method will returns the following 
         dictionary object:
 
-            {post: True, comment: False}
+            {post: True, comment: False, $my_var: 123}
+
         """
 
-
-        # print('TESTING NODE:', (node.symbol, node.value))
         for n in node.children:
+
             if n.symbol == 'string':
-                n.parent.children = []
-                n.parent.symbol, n.parent.value = n.symbol, n.value
+                if n.parent.symbol != 'EXPR':
+                    n.parent.children = []
+                    n.parent.symbol, n.parent.value = n.symbol, n.value
+
             elif n.symbol == 'number':
-                n.parent.children = []
-                n.parent.symbol, n.parent.value = n.symbol, int(n.value)
+                if n.parent.symbol != 'EXPR':
+                    n.parent.children = []
+                    n.parent.symbol, n.parent.value = n.symbol, int(n.value)
+
             elif n.symbol == 'identifier':
                 if scope == '':
                     # Update the new scope, and check if it's defined.
@@ -508,31 +560,41 @@ class Evaluator:
                             'there\'s undefined attribute: %s'\
                             % (scope, n.value)
                         )
+                    # If it is, then move the value up a node.
                     n.value = Evaluator.__get_idn_val(idns, scope, n.value)
                     n.parent.children = []
                     n.parent.symbol, n.parent.value = n.symbol, n.value
-            elif n.symbol in 'EXPR':
+
+            elif n.symbol == 'EXPR':
                 Evaluator.parse_node(n, idns, scope)
-                   
+
                 # Once we finished parsing each nodes in EXPR,
                 # create the output dict and return it.
-                out = {}
                 for i in range(len(n.children)):
-                    if n.children[i].symbol == 'identifier':
-                        out[n.children[i].value] = n.children[i + 2].value
-                return out
+                    m = n.children[i]
+                    out = {}
+                    if m.symbol in ('identifier', 'storable'):
+                        out[(m.symbol, m.value)] = n.children[i + 2].value
+                    return out
 
-            elif n.symbol in 'EVAL':
+            elif n.symbol == 'EVAL':
                 Evaluator.parse_node(n, idns, scope)
                 Evaluator.__operate(n)
-            elif n.symbol in 'TERM':
+
+            elif n.symbol == 'TERM':
                 Evaluator.parse_node(n, idns, scope)
                 Evaluator.__operate(n)
-            elif n.symbol in 'FACTOR':
+
+            elif n.symbol == 'FACTOR':
                 Evaluator.parse_node(n, idns, scope)
+
+                # Every operated node has its children emptied.
+                # Therefore, we only operate a FACTOR node 
+                # if it has at least 1 child.
                 if len(n.children) > 0:
                     Evaluator.__operate(n)
                     n.parent.value = n.value
+
             else:
                 # This node should be an operator, if it's non
                 # of the above.
@@ -565,7 +627,7 @@ class Evaluator:
         while i < len(n.children):
 
             opt = ''
-            j = 0 # Used to calculate the char-length of the opterator.
+            j = 0 # Used to calculate the char-length of the operator.
             res = True
 
             while n.children[i].symbol in opts:
@@ -652,6 +714,7 @@ class Evaluator:
 class Interpreter:
 
     identifiers = []
+    scrape_filter = None
 
     def feed(scrape_filter):
         """
@@ -668,9 +731,17 @@ class Interpreter:
                 attr = comp[comp_name].attr
                 component[attr_name] = attr[attr_name].value
             Interpreter.identifiers.append(component)
-#        print('Fed:', Interpreter.identifiers)
 
-    def run(code):
+    def set(script):
+        """
+        @param script: SFL script.
+        This 'set' the stage for evaluating the SFL script. This
+        method should be called only once to maximize performance.
+        """
+        tokens = Lexer.lexer(script)
+        Interpreter.parse_tree = Parser(tokens).parse()
+
+    def output():
         """
         @param code: The SFL code.
 
@@ -691,23 +762,55 @@ class Interpreter:
         should be scraped. Any component that does not show up in the filter
         code will automatically be flagged as True.
         """
-#        # For testing purpose.
-#        post = Component('post')
-#        post['title'] = 'This cat is funny'
-#        post['score'] = 99
-#        comment = Component('comment')
-#        comment['body'] = 'No it isn\'t'
-#        comment['score'] = -19
-#        idns = [post, comment]
+
+        ptree_clone = copy.deepcopy(Interpreter.parse_tree)
+        out = Evaluator.eval(ptree_clone, Interpreter.identifiers)
+
+        # Flag untouched components (identifiers) as True.
+        for idn in Interpreter.identifiers:
+            is_touched = False
+            for sym, val in out:
+                if val == idn.name:
+                    is_touched = True
+                    continue
+            if not is_touched:
+                out[('identifier', idn.name)] = True
+        return out
+
+    def debug_run(code):
+        """
+        Debugging purpose.
+        """
+        # For testing purpose.
+        post = Component('post')
+        post['title'] = 'This cat is funny'
+        post['score'] = 99
+        comment = Component('comment')
+        comment['body'] = 'No it isn\'t'
+        comment['score'] = -19
+        idns = [post, comment]
 
         tokens = Lexer.lexer(code)
-        parse_tree = Parser(tokens).parse()
-        out = Evaluator.eval(parse_tree, Interpreter.identifiers)
+        print(tokens)
 
-        # Flag untouched components as True.
-        for k in Interpreter.identifiers:
-            if k.name not in out:
-                out[k.name] = True
+        parse_tree = Parser(tokens).parse()
+        print('===A===')
+        print(parse_tree)
+
+        out = Evaluator.eval(parse_tree, idns)
+        print('===B===')
+        print(parse_tree)
+
+        print('out:', out)
+
+        for idn in idns:
+            is_touched = False
+            for sym, val in out:
+                if val == idn.name:
+                    is_touched = True
+                    continue
+            if not is_touched:
+                out[('identifier', idn.name)] = True
         return out
 
 class ParseTree:
@@ -763,6 +866,8 @@ class Component(dict):
             100
     """
 
+    # A dictionary where it hold the names and the values of this
+    # component's attributes.
     attr_dict = {}
 
     def __init__(self, name):
@@ -789,3 +894,11 @@ class Component(dict):
     def __str__(self):
         return repr(self)
 
+class Storable():
+
+    name = ''
+    default_val = ''
+
+    def __init__(self, name, default_val=''):
+        self.name = name
+        self.default_val = default_val

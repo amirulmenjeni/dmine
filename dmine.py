@@ -270,17 +270,20 @@ class ScrapeFilter:
     comp = {}
     spider_name = ''
     sfl_input = ''
+    var = {}
     
-    def __init__(self, sfl_input, spider_name=''):
+    def __init__(self, sfl_script, spider_name=''):
         """
-        @param sfl_input: The scrape filter language string input.
+        @param sfl_script: The scrape filter language script.
         @param spider_name: The name of the spider that employ this scrape
                             filter.
 
         Create an instance of `ScrapFilter` class.
         """
         self.spider_name = spider_name
-        self.sfl_input = sfl_input
+        self.sfl_input = sfl_script
+        self.var = {}
+        Interpreter.set(sfl_script)
 
     def add(self, name, info):
         """
@@ -335,9 +338,18 @@ class ScrapeFilter:
 
     def run_interpreter(self):
         Interpreter.feed(self)
-        scrape_flags = Interpreter.run(self.sfl_input)
-        for comp_name in scrape_flags:
-            self.comp[comp_name].flag = scrape_flags[comp_name]
+        sfl_output = Interpreter.output()
+        for key in sfl_output:
+            sym, name = key 
+            val = sfl_output[key]
+            if sym == 'storable':
+                self.var[name] = val
+            elif sym == 'identifier':
+                self.comp[name].flag = val
+            else:
+                msg = 'Unknown token symbol: %s' % sym
+                logging.error(msg)
+                raise ValueError(msg)
     
     def detail(self):
         """
