@@ -17,139 +17,6 @@ import parser
 from sfl import Interpreter
 from abc import ABCMeta, abstractmethod
 
-# The types of expected and valid input for each instance of an
-# Input class.
-class InputType(enum.Enum):
-    BOOLEAN = enum.auto()
-    INTEGER = enum.auto()
-    STRING = enum.auto()
-
-# Takes in input for a particular spider.
-class InputGroup:
-    inputs = {}
-    input_string = ''
-    spider_name = ''
-    
-    def __init__(self, input_string, spider_name=''):
-        self.inputs = {}
-        self.input_string = input_string
-        self.spider_name = spider_name
-
-    def add_input(self, input_obj):
-        if input_obj.symbol:
-            self.inputs[input_obj.symbol] = input_obj
-        self.inputs[input_obj.name] = input_obj
-
-    def get(self, key):
-        try:
-            return self.inputs[key]
-        except KeyError:
-            logging.error(
-                'There is no input with the name or symbol \'%s\'. '\
-                'Please run "dmine -I %s" to see the list of available '\
-                'input for this spider.'
-                % (key, self.spider_name)
-            )
-            raise
-
-    def detail(self):
-        lines = ''
-        for k in self.inputs:
-            if len(k) > 1:
-                name = k
-                symbol = self.get(k).symbol
-                if symbol is None:
-                    symbol = 'No symbol'
-                val = self.get(k).val()
-                info = self.get(k).info
-                input_type = str(self.get(k).input_type)
-                input_type = input_type[input_type.find('.') + 1:]
-                lines += '%s (%s):\n' % (name, symbol)
-                lines += '    Input type    : %s\n' % input_type
-                lines += '    Default value : %s\n' % val
-                lines += '    Info          : %s\n' % info
-        return lines
-
-class Input:
-    name = ''
-    symbol = ''
-    value = None
-    default_value = None
-    info = ''
-    input_type = InputType.STRING
-
-    used_symbols = []
-    used_names = []
-    
-    def __init__(self, name, input_type, default=None, symbol=None, info=''):
-        if name in Input.used_names:
-            longging.error(
-                'The input name \'%s\' has been used.'
-                % name
-            )
-            raise
-        if symbol and (symbol in Input.used_symbols):
-            longging.error(
-                'The input symbol \'%s\' has been used.'
-                % symbol
-            )
-            raise
-
-        self.name = name
-        self.symbol = symbol
-        self.value = ''
-        self.default_value = default
-        self.input_type = input_type
-        self.info = info
-       
-        Input.used_names.append(self.name)
-        Input.used_symbols.append(self.symbol)
-
-    def val(self):
-        return self.compile()
-
-    # Validate the input type. If the input is correct with
-    # respect to its input type, then parse to its type (if needed)
-    # and return it. Otherwise, throw an error.
-    def compile(self):
-        if not self.value:
-            self.value = self.default_value
-
-        # If the default value is None, then just return it.
-        if not self.value:
-            return self.value
-
-        # Process input according to its defined input type.
-        val = self.value
-        if self.input_type == InputType.BOOLEAN:
-            if val not in ['True', 'False', '1', '0']:
-                logging.error(
-                    'The input type for \'%s\' is %s, but the value given '\
-                    'is not a boolean. Accepted value for this input is '\
-                    'either True, False, 1, or 0.'
-                    % (self.name, self.input_type)
-                )
-                raise
-
-            if val in ['True', '1']:
-                val = True
-            else:
-                val = False
-
-        if self.input_type == InputType.INTEGER:
-            if isinstance(val, int): # Integer input convert to str.
-                val = str(val)
-            if not val.isdigit():
-                logging.error(
-                    'The input type for \'%s\' is %s, but the value given '\
-                    'is not an integer.'
-                    % (self.name, self.input_type)
-                )
-                raise
-            val = int(val) 
-
-        return val
-
 class Component:
     """
     WARNING: This class isn't supposed to be instantiated outside
@@ -243,7 +110,7 @@ class Attribute:
     component = None
     name = ''
     info = ''
-    value = ''
+    value = None
 
     def __init__(self, component, name, info=''):
         """
@@ -258,7 +125,68 @@ class Attribute:
         self.component = component
         self.name = name
         self.info = info
-        self.value = ''
+        self.value = None
+
+class Variable:
+    """
+    WARNING: This class isn't supposed to be instantiated outside the 
+             `ScrapeFilter` class.
+
+    This class defines an argument variable (or just called as variables or
+    storables in SFL).
+    """
+
+    scrape_filter = None
+    name = ''
+    info = ''
+    type = str
+    value = None
+    default_value = None
+
+    def __init__(self, scrape_filter, name, type=str, default=None, info=''):
+        """
+        @param scrape_filter: The scrape filter object that is used
+                              to define this variable from.
+        @param name: The variable name.
+        @param type: The type of the variable. By default, the variable
+                     type is a string. This can also be a function that
+                     that takes in the value of this variable to make this
+                     variable's value the output of the given function.
+        @param defval: The default value of this variable. By default, this is
+                       set to None.
+        @param info: The information pertaining this variable.
+        """
+        self.scrape_filter = scrape_filter
+        self.name = name
+        self.type = type
+        self.value = None
+        self.default_value = default
+        self.info = info
+
+    def __to_type(self, value):
+        """
+        @param value: The value of the variable.
+
+        Convert a given variable's value to its specified type.
+        """
+        if self.type == bool:
+            print('type bool:', value)
+            if value in (1, 'True'):
+                return True
+            elif value in (0, 'False'):
+                return False
+            else:
+                Variable.__throw_type_error(self.name, value, self.type)
+        return self.type(value) 
+
+    def __throw_type_error(name, value, type):
+        msg = 'Invalid value for the type %s of variable \'%s\': %s'\
+              % (type, name, value)
+        logging.error(msg)
+        raise TypeError(msg)
+
+    def set_value(self, value):
+        self.value = self.__to_type(value)
 
 class ScrapeFilter:
     """
@@ -285,14 +213,29 @@ class ScrapeFilter:
         self.var = {}
         Interpreter.set(sfl_script)
 
-    def add(self, name, info):
+    def add_com(self, name, info=''):
         """
         @param name: The name of the component.
         @param info: The information pertaining the component.
+
+        Add a new component to this scrape filter.
         """
         if name in self.comp:
-            ComponentGroup.__throw_comp_name_error(name)
+            ScrapeFilter.__throw_comp_name_error(name)
         self.comp[name] = Component(self, name, info)
+
+    def add_var(self, name, type=str, default='', info=''):
+        """
+        @param name: The name of the variable.
+        @param defval: The default value assigned to the variable.
+        @param info: The information pertaining the variable.
+
+        Add a new variable to this scrape filter.
+        """
+        if name in self.var:
+            msg = 'The variable name \'%s\' already exist.' % name
+            ScrapeFilter.__throw_error(msg)
+        self.var[name] = Variable(self, name, type, default, info)
 
     def is_name_valid(name):
         """
@@ -308,21 +251,17 @@ class ScrapeFilter:
         """
         return re.match('^[_a-zA-Z][_a-zA-Z0-9]+$', name)
 
-    def __throw_comp_name_error(name):
-        msg = 'The component with the name \'%s\' already exists.'\
-              % name
-        logging.error(msg)
-        raise ValueError(msg)
-
-    def __throw_not_exist_error(name):
-        msg = 'No component named \'%s\' exist.' % name
+    def __throw_error(msg):
         logging.error(msg)
         raise KeyError(msg)
 
+    def __throw_not_exist_error(symbol, name):
+        msg = 'No %s named \'%s\' exist.' % (symbol, name)
+        ScrapeFilter.__throw_error(msg)
+
     def throw_invalid_name_error(name):
         msg = 'The of the component or attribute \'%s\' is invalid.' % name
-        logging.error(msg)
-        raise NameError(name)
+        ScrapeFilter.__throw_error(msg)
 
     def get(self, name):
         """
@@ -334,44 +273,71 @@ class ScrapeFilter:
         try:
             return self.comp[name]
         except:
-            ScrapeFilter.__throw_not_exist_error(name)
+            ScrapeFilter.__throw_not_exist_error('component', name)
+
+    def ret(self, name):
+        """
+        @param name: The name of the variable to get.
+
+        Returns a variable with the given name. If the name doesn't
+        exists, an error will be thrown.
+        """
+        try:
+            return self.var[name].value
+        except:
+            ScrapeFilter.__throw_not_exist_error('variable', name)
 
     def run_interpreter(self):
+        """
+        Run the SFL interpreter. All the definitions of components
+        and variables are defined from this scrape filter. We just
+        need to feed the interpreter this scrape filter, and get
+        its output.
+        """
         Interpreter.feed(self)
         sfl_output = Interpreter.output()
+        print('sfl out:', sfl_output)
         for key in sfl_output:
             sym, name = key 
             val = sfl_output[key]
             if sym == 'storable':
-                self.var[name] = val
+                self.var[name].set_value(val)
             elif sym == 'identifier':
                 self.comp[name].flag = val
             else:
                 msg = 'Unknown token symbol: %s' % sym
                 logging.error(msg)
                 raise ValueError(msg)
-    
+
     def detail(self):
         """
         Returns a multiline string that represents the components and
-        its attributes created in this scrap filter.
+        its attributes, as well as the variables created in this 
+        scrape filter.
         """
         lines = ''
+        lines += 'COMPONENTS:\n\n'
         for k in self.comp:
-            if len(k) != 1:
-                name = k
-                info = self.get(k).info
-                component = '%s: %s\n' % (name, info)
-                lines += component
-                for j in self.comp[k].attr:
-                    if len(j) != 1:
-                        name = j
-                        info = self.get(k).get(j).info
-                        if info == '':
-                            info = '(No info available)'
-                        attribute =  '    %s: %s\n' % (name, info)
-                        lines += attribute
-                lines += '\n'
+            name = k
+            info = self.get(k).info
+            component = ' %s: %s\n' % (name, info)
+            lines += component
+            for j in self.comp[k].attr:
+                if len(j) != 1:
+                    name = j
+                    info = self.get(k).get(j).info
+                    if info == '':
+                        info = '(No info available)'
+                    attribute =  '     %s: %s\n' % (name, info)
+                    lines += attribute
+            lines += '\n'
+
+        lines += 'ARGUMENT VARIABLES:\n\n'
+        for k in self.var:
+            name = k
+            info = self.var[k].info
+            variable = ' %s: %s\n' % (name, info)
+            lines += variable
         return lines
 
 class Utils:

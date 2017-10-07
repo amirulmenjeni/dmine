@@ -46,22 +46,38 @@ class Lexer:
             elif Lexer.__is_newline(line[i]):
                 i += 1
 
-            # TYPE: identifier or operator
+            # TYPE: identifier, operator, or boolean.
             #
             # Since there exists some operators with alphabetical
             # character, the starting char of an identifier may
             # be confused with an operator's.
+            #
+            # Boolean is also consists of alphabetical chars, 
+            # similar to identifier.
             elif re.match('[_a-zA-Z]', line[i]) or\
                  Lexer.__is_operator(line[i]):
 
                 j = i
                 operator = ''
                 identifier = ''
+                boolean = ''
+
+                # Assume it's a starting character of a boolean value,
+                # either True or False.
+                while j < len(line) and Lexer.__is_boolean(line[j]):
+                    print('c:', line[j])
+                    boolean += line[j]
+                    j += 1
+
+                if Lexer.__is_boolean_valid(boolean):
+                    tokens.append(('boolean', boolean))
+                    i = j
+                    continue
 
                 # Assume it's a starting character of an identifier, since
                 # the alphabetical chars in the operators is a subset
                 # of the chars in the identifiers.
-                #print('---IDENTIFIER---')
+                j = i
                 while j < len(line) and Lexer.__is_identifier(j, line):
                     #print('    j: %s, c: %s' % (j, line[j]))
                     identifier += line[j]
@@ -86,7 +102,6 @@ class Lexer:
                 # the remaining chars of the operator must be symbolic
                 # char as well. Same applied with alphabetical operators.
                 j = i
-                #print('---OPERATOR---')
                 if line[j].isalpha():
                     while j < len(line) and\
                           Lexer.__is_operator(line[j]) and\
@@ -191,6 +206,13 @@ class Lexer:
         valid_operators = ['(', ')', '{', '}', '<', '<=', '>', '>=',\
                            '==', '!=', '=', 'and', 'or', 'not', 'in'] 
         return operator in valid_operators
+
+    def __is_boolean(c):
+        regex = '[TrueFalse]'
+        return re.match(regex, c) is not None
+
+    def __is_boolean_valid(boolean):
+        return boolean in ('True', 'False')
 
     def __is_storable_valid(storable):
         regex = '^\$[\_a-zA-Z0-9]+$'
@@ -499,18 +521,18 @@ class Parser:
 
 class Evaluator:
 
-    def eval(pt, idns):
+    def eval(pt, idns, stors):
         """
         @param pt: The parse tree object that is obtained 
                    from the parser.
         @param idns: The list of dict of identifiers.
         """
-        out = Evaluator.parse_node(pt, idns)
+        out = Evaluator.parse_node(pt, idns, stors)
         if out is None:
             out = {}
         return out
 
-    def parse_node(node, idns, scope=''):
+    def parse_node(node, idns, stors, scope=''):
         """
         @param node: A node in a parse tree.
         @param idns: The list of Component class from sfl module.
@@ -518,6 +540,8 @@ class Evaluator:
                       This parameter is used internally in this method
                       to keep track and check the scope of the scrap 
                       attributes.
+
+        This method recursively evaluate a node in the parse tree.
 
         Simply put, given parse tree from the following scrap filter input:
         
@@ -547,14 +571,14 @@ class Evaluator:
                 if scope == '':
                     # Update the new scope, and check if it's defined.
                     scope = n.value
-                    if not Evaluator.__is_defined(idns, scope):
+                    if not Evaluator.__is_comp_defined(idns, scope):
                         Evaluator.__throw_eval_error(
                             'Undefined scrape component: %s' % scope
                         )
                 else:
                     # Check if the identifier is defined within the scope.
                     # (i.e. if the component contains the attribute.)
-                    if not Evaluator.__is_defined(idns, scope, n.value):
+                    if not Evaluator.__is_comp_defined(idns, scope, n.value):
                         Evaluator.__throw_eval_error(
                             'In the scrape component \'%s\', '\
                             'there\'s undefined attribute: %s'\
@@ -570,23 +594,37 @@ class Evaluator:
 
                 # Once we finished parsing each nodes in EXPR,
                 # create the output dict and return it.
+                out = {}
+                print('idns:', idns)
+                print('stor:', stors)
                 for i in range(len(n.children)):
                     m = n.children[i]
-                    out = {}
-                    if m.symbol in ('identifier', 'storable'):
+                    print('m:', m.symbol, m.value)
+                    if m.symbol == 'identifier':
                         out[(m.symbol, m.value)] = n.children[i + 2].value
-                    return out
+                    elif m.symbol == 'storable':
+                        if not Evaluator.__is_stor_defined(stors, m.value):
+                            Evaluator.__throw_eval_error(
+                                'Undefined storable: %s' % m.value
+                            )
+                        # Assign value to the storable token.
+                        val_token = n.children[i + 2]
+                        val = val_token.value
+                        if val_token.symbol == 'number':
+                            val = int(val)
+                        out[(m.symbol, m.value[1:])] = val
+                return out
 
             elif n.symbol == 'EVAL':
-                Evaluator.parse_node(n, idns, scope)
+                Evaluator.parse_node(n, idns, stors, scope)
                 Evaluator.__operate(n)
 
             elif n.symbol == 'TERM':
-                Evaluator.parse_node(n, idns, scope)
+                Evaluator.parse_node(n, idns, stors, scope)
                 Evaluator.__operate(n)
 
             elif n.symbol == 'FACTOR':
-                Evaluator.parse_node(n, idns, scope)
+                Evaluator.parse_node(n, idns, stors, scope)
 
                 # Every operated node has its children emptied.
                 # Therefore, we only operate a FACTOR node 
@@ -643,6 +681,17 @@ class Evaluator:
                 if i - j - 1 >= 0:
                     left = n.children[i - j - 1].value
                 right = n.children[i].value
+
+                # Handling the occurence when left or right operand
+                # has not been assigned any value.
+                if right is None or left is None:
+                    msg = 'An operand has no value assigned. Ignoring '\
+                          'the \'<%s> %s <%s>\' operation.'\
+                          % (n.children[i - j - 1].symbol, 
+                             opt, n.children[i].symbol)
+                    logging.warning(msg)
+                    continue
+
                 operate = {
                     '<': lambda x, y: x < y,
                     '<=': lambda x, y: x <= y,
@@ -681,13 +730,14 @@ class Evaluator:
             'Attribute not found: %s' % attr
         )
   
-    def __is_defined(idns, component, attribute=None):
+    def __is_comp_defined(idns, component, attribute=None):
         """
+        @param idns: A list of sfl.Component object.
         @param component: The supposed component.
         @param attribute: The supposed attribute the component.
 
         Check if the identifier (the scrape component or its attribute) 
-        is defined or not. Returns True if defines. Otherwise, 
+        is defined or not. Returns True if defined. Otherwise, 
         returns False.
         """
         
@@ -706,6 +756,19 @@ class Evaluator:
                 if idn.has_attr(attribute):
                     return True
             return False
+    
+    def __is_stor_defined(stors, sname):
+        """
+        @param stors: The list of sfl.Storable object. 
+        @param sname: The supposed storable's name.
+
+        Check if the storable is defined or not. Returns true if defined.
+        Otherwise, returns False.
+        """
+        for s in stors:
+            if s.fname == sname:
+                return True
+        return False
 
     def __throw_eval_error(msg):
         logging.error(msg)
@@ -713,16 +776,20 @@ class Evaluator:
 
 class Interpreter:
 
-    identifiers = []
+    identifiers = [] # List of sfl.Component objects.
+    storables = []   # List of sfl.Storable objects.
     scrape_filter = None
 
     def feed(scrape_filter):
         """
         @param scrape_filter: A scrape filter object.
         
-        Feed this interpreter the identifiers and its values.
-
+        Feed this interpreter the identifiers and storables.
+        The list `Interpreter.identifiers` is emptied before
+        it is filled again with new values. The list
+        `Interpreter.storables` is only filled once.
         """
+
         Interpreter.identifiers = []
         for comp_name in scrape_filter.comp:
             component = Component(comp_name)
@@ -732,11 +799,17 @@ class Interpreter:
                 component[attr_name] = attr[attr_name].value
             Interpreter.identifiers.append(component)
 
+        if len(Interpreter.storables) == 0:
+            for name, variable in scrape_filter.var.items():
+               storable = Storable(name, variable.default_value)
+               Interpreter.storables.append(storable) 
+
     def set(script):
         """
         @param script: SFL script.
         This 'set' the stage for evaluating the SFL script. This
-        method should be called only once to maximize performance.
+        method should be called only once to maximize performance
+        (i.e. at the instantiation of the dmine's scrape filter).
         """
         tokens = Lexer.lexer(script)
         Interpreter.parse_tree = Parser(tokens).parse()
@@ -762,9 +835,11 @@ class Interpreter:
         should be scraped. Any component that does not show up in the filter
         code will automatically be flagged as True.
         """
-
+    
         ptree_clone = copy.deepcopy(Interpreter.parse_tree)
-        out = Evaluator.eval(ptree_clone, Interpreter.identifiers)
+        out = Evaluator.eval(ptree_clone, 
+                            Interpreter.identifiers,
+                            Interpreter.storables)
 
         # Flag untouched components (identifiers) as True.
         for idn in Interpreter.identifiers:
@@ -775,6 +850,19 @@ class Interpreter:
                     continue
             if not is_touched:
                 out[('identifier', idn.name)] = True
+
+        print('b4 out:', out)
+        # Assign untouched variables (storables) with their default
+        # values.
+        for s in Interpreter.storables:
+            is_touched = False
+            for sym, val in out:
+                if val == s.name:
+                    is_touched = True
+                    continue
+            if not is_touched:
+                out[('storable', s.name)] = s.default_value
+
         return out
 
     def debug_run(code):
@@ -790,14 +878,20 @@ class Interpreter:
         comment['score'] = -19
         idns = [post, comment]
 
+        subreddit = Storable('scan_subreddit', 'all')
+        sections = Storable('scan_sections', 'hot,trending,new')
+        stors = [subreddit, sections]
+
         tokens = Lexer.lexer(code)
-        print(tokens)
+        print('identifiers:\n', idns)
+        print('storables:\n', stors)
+        print('tokens:\n', tokens)
 
         parse_tree = Parser(tokens).parse()
         print('===A===')
         print(parse_tree)
 
-        out = Evaluator.eval(parse_tree, idns)
+        out = Evaluator.eval(parse_tree, idns, stors)
         print('===B===')
         print(parse_tree)
 
@@ -894,11 +988,19 @@ class Component(dict):
     def __str__(self):
         return repr(self)
 
-class Storable():
-
+class Storable:
+    
+    fname = ''
     name = ''
-    default_val = ''
+    default_value = ''
 
-    def __init__(self, name, default_val=''):
+    def __init__(self, name, default_value='', prefix='$'):
+        self.fname = prefix + name
         self.name = name
-        self.default_val = default_val
+        self.default_value = default_value
+
+    def __repr__(self):
+        return "(name: %s, val: %s)" % (self.name, self.default_value)
+
+    def __str__(self):
+        return repr(self)

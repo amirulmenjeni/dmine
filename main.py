@@ -9,7 +9,7 @@ import threading
 import time
 import logging
 import math
-from dmine import Utils, Spider, ScrapeFilter, InputGroup, ComponentLoader
+from dmine import Utils, Spider, ScrapeFilter, ComponentLoader
 from spiders import *
 
 def main():
@@ -185,14 +185,7 @@ def run_spider(instance, args):
                       )
     instance.scrape_filter = scrape_filter
     instance.setup_filter(scrape_filter)
-
-    # Set up input group.
-    input_group = InputGroup(
-                    args.spider_input, 
-                    spider_name=instance.name
-                  )
-    instance.input_group = input_group
-    instance.setup_input(input_group)
+    instance.scrape_filter.run_interpreter()
 
     # Start spider.
     results = instance.start()
@@ -200,6 +193,7 @@ def run_spider(instance, args):
     if results is None:
         logging.warning('No data is generated from %s.start().' %
                         type(instance).__name__)
+        return
 
     # Iterate of over the results generator.
     # If a timer is used, then stop the iteration when

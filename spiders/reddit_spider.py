@@ -5,20 +5,23 @@
 import sys
 import praw
 import logging
-from dmine import Spider, Input, InputType, ComponentLoader
+from dmine import Spider, ComponentLoader
 
 class RedditSpider(Spider):
     r = None # Reddit praw instance.
     name = 'reddit'
 
+    def __type_list(value):
+        return [v.strip() for v in value.split(',')]
+
     def setup_filter(self, sf):
         """
-        Scrape filter needs to be set up here.
+        Scrape filter is REQUIRED to be set up here.
         """
 
         # Create components.
-        sf.add('post', info='A user post or submission')
-        sf.add('comment', info='A user comment with respect to a post.')
+        sf.add_com('post', info='A user post or submission')
+        sf.add_com('comment', info='A user comment with respect to a post.')
 
         # Add post attributes.
         sf_post = sf.get('post')
@@ -35,61 +38,14 @@ class RedditSpider(Spider):
         sf_comment.add('body', info='The comment text body.')
         sf_comment.add('author', info='The redditor who posted this comment.')
 
-    def setup_input(self, input_group):
-        input_group.add_input(
-            Input(
-                'scan-subreddit', 
-                InputType.STRING, 
-                default='all',
-                symbol='r',
-                info='A whitespace separated list of subreddits to be '
-                     'scanned. '\
-                     'By default, r/all will be scanned.'
-            )
-        )
-
-        input_group.add_input(
-             Input(
-                'post-limit',
-                InputType.INTEGER,
-                default=999999,
-                info='The limit on how many posts can be collected. '\
-                     'The default is no limit.'
-            )
-        )
-
-        input_group.add_input(
-            Input(
-                'comment-limit',
-                InputType.INTEGER,
-                default=999999,
-                info='The limit on how many comments can be collected. '\
-                     'The default is no limit.'
-            )
-        )
-
-        input_group.add_input(
-            Input(
-                'sections',
-                InputType.STRING,
-                default='hot rising new top',
-                info='The section in which the submission appear. Valid '\
-                     'selection is hot, rising, new, or top.'
-            )
-        )
-
-        input_group.add_input(
-            Input(
-                'skip-comments',
-                InputType.BOOLEAN,
-                default=False,
-                info='Skip comments entirely. This means the spider will '\
-                     'scan posts or submissions.'
-            )
-        )
+        # Create variables.
+        sf.add_var('scan_subreddit', 
+                   default='all', type=RedditSpider.__type_list,
+                   info='The list of subreddits to scan, seperated by comma.')
+        sf.add_var('skip_comments', default=False, type=bool,
+                   info='Skip comments for each scanned post if set to True.')
 
     def start(self):
-
         """
         Starts the spider.
         """
@@ -99,6 +55,7 @@ class RedditSpider(Spider):
         sf = self.scrape_filter
         sf_post = sf.get('post')
         sf_comment = sf.get('comment')
+        print(sf.ret('skip_comments'))
 
         ##################################################
         # Get the scrape input object of this spider.
@@ -130,27 +87,27 @@ class RedditSpider(Spider):
 
         # Get the sections from which the post appear in each
         # subreddit.
-        sections = self.get_sections(inp)
+        # sections = self.get_sections(inp)
 
-        for section in sections:
-            for post in section:
-                # Assign each component's attribute.
-                sf_post.set_attr_values(
-                    title=post.title,
-                    score=int(post.score),
-                    subreddit=str(post.subreddit),
-                    author=str(post.author)
-                )
-
-                # Scrape the post if it pass the filter.
-                if sf_post.should_scrape():
-                    yield ComponentLoader('post', {
-                        'post_id': post.id,
-                        'title': post.title,
-                        'subreddit': str(post.subreddit),
-                        'score': post.score,
-                        'author': str(post.author)
-                    })
+#        for section in sections:
+#            for post in section:
+#                # Assign each component's attribute.
+#                sf_post.set_attr_values(
+#                    title=post.title,
+#                    score=int(post.score),
+#                    subreddit=str(post.subreddit),
+#                    author=str(post.author)
+#                )
+#
+#                # Scrape the post if it pass the filter.
+#                if sf_post.should_scrape():
+#                    yield ComponentLoader('post', {
+#                        'post_id': post.id,
+#                        'title': post.title,
+#                        'subreddit': str(post.subreddit),
+#                        'score': post.score,
+#                        'author': str(post.author)
+#                    })
 
                 # Scraping (most if not all) comments of each post.
 #                post.comments.replace_more(limit=0)
