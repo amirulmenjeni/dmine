@@ -578,6 +578,7 @@ class Evaluator:
         i = 0
         opts = ('<', '<=', '>', '>=', '==', '!=',\
                 'and', 'or', 'not', 'in', '(')
+        is_negate = False
         while i < len(n.children):
 
             opt = ''
@@ -593,6 +594,14 @@ class Evaluator:
                     break
 
             if opt != '':
+                
+                # If the operation is a negation, we set the negation
+                # flag and continue to be used against the next operation's
+                # result.
+                if opt == 'not':
+                    is_negate = True
+                    continue
+
                 left = None
                 if i - j - 1 >= 0:
                     left = n.children[i - j - 1].value
@@ -623,6 +632,9 @@ class Evaluator:
                 }
                 try:
                     res = operate[opt](left, right)
+                    if is_negate:
+                        res = not res
+                        is_negate = False
                 except TypeError as e:
                     Evaluator.__throw_eval_error(
                         str(e) + '. left operand is \'%s\', and '\
@@ -691,6 +703,9 @@ class Evaluator:
         raise SyntaxError(msg)
 
 class Interpreter:
+    """
+    This class is responsible to stitch everything together.
+    """
 
     identifiers = [] # List of sfl.Component objects.
     storables = []   # List of sfl.Storable objects.
