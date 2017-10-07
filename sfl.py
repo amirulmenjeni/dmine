@@ -57,90 +57,50 @@ class Lexer:
             elif re.match('[_a-zA-Z]', line[i]) or\
                  Lexer.__is_operator(line[i]):
 
-                j = i
                 operator = ''
                 identifier = ''
                 boolean = ''
 
                 # Assume it's a starting character of a boolean value,
                 # either True or False.
-                while j < len(line) and Lexer.__is_boolean(line[j]):
-                    print('c:', line[j])
-                    boolean += line[j]
-                    j += 1
-
-                if Lexer.__is_boolean_valid(boolean):
+                print('testing boolean:', i)
+                boolean, i = Lexer.__scan(
+                    i, line, '[TrueFalse]', '^(True|False)$'
+                )
+                if boolean:
                     tokens.append(('boolean', boolean))
-                    i = j
                     continue
+                print('not boolean...', i)
 
-                # Assume it's a starting character of an identifier, since
-                # the alphabetical chars in the operators is a subset
-                # of the chars in the identifiers.
-                j = i
-                while j < len(line) and Lexer.__is_identifier(j, line):
-                    #print('    j: %s, c: %s' % (j, line[j]))
-                    identifier += line[j]
-                    j += 1
-
-                # If the identifier string is not a reserved string
-                # for an operator, add it as token.
-                if not Lexer.__is_operator_valid(identifier) and\
-                       len(identifier) > 0:
-                    tokens.append(('identifier', identifier))
-                    i = j
-                    continue 
-                else:
-                    # Then this isn't an identifier. Maybe this is an
-                    # operator?
-                    errored_token = identifier
-                    pass
 
                 # The operator tokens contains symbolic characters
                 # as well as alphabetical characters (for 'not', 'in', etc).
                 # So if the operator starts with a symbolic char, 
                 # the remaining chars of the operator must be symbolic
                 # char as well. Same applied with alphabetical operators.
-                j = i
-                if line[j].isalpha():
-                    while j < len(line) and\
-                          Lexer.__is_operator(line[j]) and\
-                          line[j].isalpha():
-                        
-                        #print('    j: %s, c: %s' % (j, line[j]))
-                        operator += line[j]
-                        j += 1
-                else:
-                    while j < len(line) and\
-                          Lexer.__is_operator(line[j]) and\
-                          not line[j].isalpha():
-
-                        #print('    j: %s, c: %s' % (j, line[j]))
-                        operator += line[j]
-                        j += 1
-
-                # Validate operator token.
-                if Lexer.__is_operator_valid(operator):
+                print('testing operator:', i)
+                opt_chars = '[(){}<>!=andornotin]'
+                opts = '^(\(|\)|\{|\}|<|<=|>|>=|==|!=|=|and|or|not|in)$'
+                operator, i = Lexer.__scan(
+                    i, line, opt_chars, opts
+                )
+                if operator:
                     tokens.append((operator, ''))
-                    i = j
+                    continue
+                print('not operator...', i)
 
-                else:
-                    # Fix nested parentheses not tokenized correctly.
-                    k = 0
-                    while len(operator) >= 0:
-                        operator = operator[:-1]
-                        k += 1
-                        if Lexer.__is_operator_valid(operator):
-                            tokens.append((operator, ''))
-                            i = j - k
-                            break
-                    else:
-                        # If this is not an operand either, then this must
-                        # be an invalid token.
-                        invalid_token = operator
-                        if len(operator) == 0:
-                            invalid_token = identifier
-                        Lexer.__throw_token_error(invalid_token)
+                # Assume it's a starting character of an identifier, since
+                # the alphabetical chars in the operators is a subset
+                # of the chars in the identifiers.
+                print('testing identifier:', i)
+                identifier, i = Lexer.__scan(
+                    i, line, '[_a-zA-Z0-9]', '^[a-zA-Z0-9_]+$', last=True
+                )
+                if identifier and not Lexer.__is_operator_valid(identifier):
+                    tokens.append(('identifier', identifier))
+                    continue
+                print('not identifier...', i)
+
 
             # TYPE: string
             #
@@ -160,12 +120,9 @@ class Lexer:
             # A token of type number have all digits for its
             # chars. So, 123abc is not an integer.
             elif re.match('[\-0-9]', line[i]):
-                number, i = Lexer.__scan(i, line, '[\.0-9]') 
+                number, i = Lexer.__scan(i, line, '[\-\.0-9]', '-?\d+(\.\d+)?') 
                 if number:
-                    if Lexer.__is_valid_number(number):
-                        tokens.append(('number', number))
-                    else:
-                        Lexer.__throw_token_error(number)
+                    tokens.append(('number', number))
                 else:
                     Lexer.__throw_token_error(number)
 
@@ -175,20 +132,20 @@ class Lexer:
             # `$` character. Then the following characters
             # follows the identifier pattern rule.
             elif line[i] == '$':
-                storable, i = Lexer.__scan(i, line, '[\_\$a-zA-Z0-9]')
+                storable, i = Lexer.__scan(
+                    i, line, '[\_\$a-zA-Z0-9]', '\$[a-zA-Z0-9_]+'
+                )
                 if storable:
-                    if Lexer.__is_storable_valid(storable):
-                        tokens.append(('storable', storable))
-                    else:
-                        Lexer.__throw_token_error(storable)
+                    tokens.append(('storable', storable))
                 else:
                     Lexer.__throw_token_error(storable)
-
+            
             # Weird token.
             else:
                 Lexer.__throw_token_error(errored_token)
                 logging.error(msg)
                 raise ValueError(msg)
+            print(tokens)
 
         tokens.append(('EOF', ''))
         return tokens
@@ -207,13 +164,6 @@ class Lexer:
                            '==', '!=', '=', 'and', 'or', 'not', 'in'] 
         return operator in valid_operators
 
-    def __is_boolean(c):
-        regex = '[TrueFalse]'
-        return re.match(regex, c) is not None
-
-    def __is_boolean_valid(boolean):
-        return boolean in ('True', 'False')
-
     def __is_storable_valid(storable):
         regex = '^\$[\_a-zA-Z0-9]+$'
         return re.match(regex, storable) is not None
@@ -228,34 +178,50 @@ class Lexer:
         c = line[i]
         return re.match('[a-zA-Z0-9_]', line[i]) is not None
 
-    def __scan(i, line, regex_pattern):
+    def __scan(i, line, chars_pattern, token_pattern, last=False):
         """
         @param i: The position of the char in the string line
                   to start scan.
         @param line: The input stream string.
-        @param regex_pattern: The pattern in which to scan.
-
-        Scans the line from the character at position `i` until
-        either when `i` reached the end of the string `line` or
-        when `line[i]` does not match the given `regex_pattern`.
+        @param chars_pattern: The chars' regex pattern e.g. [a-zA-Z0-9]
+        @param token_pattern: The token's regex pattern e.g. ^(True|False)$
+        @param last: If set to True, then a non-match will result in error
+                     being thrown instead of returning None and the
+                     index.
         """
         s = ''
-        while i < len(line) and re.match(regex_pattern, line[i]):
-            s += line[i]
-            i += 1
+        j = i
 
-        # Test the next char (if possible), whether or not it
-        # follows the same regex pattern as those chars collected
-        # in `s`. If possible, and the next char does not follow
-        # the same pattern, then return None.
-        try:
-            if line[i] != ' ' or line[i] != '\t':
-                return s, i
-            if not re.match(regex_pattern, line[i]):
+        # Special characters: delimiters that indicate
+        # a token's boundary.
+        if line[i] in ('{', '}', '(', ')'):
+            if re.match(token_pattern, line[i]):
+                print('returning delimiter:', line[i])
+                return line[i], j + 1
+            else:
                 return None, i
-        except IndexError:
-            pass
-        return s, i
+
+        # Scan and append chars in the line from j-th index
+        # until an unwanted char is reached.
+        delimiter = '(\s|{|}|\(|\))'
+        while j < len(line) and not re.match(delimiter, line[j]):
+            s += line[j]
+            j += 1
+            print('s:', s)
+
+        # Try to match the scanned string `s` with the `token_pattern`
+        # regex string. If it doesn't match, then return None and 
+        # restore the current index (by returning `i`).
+        print('token pattern:', token_pattern)
+        match = re.match(token_pattern, s)
+        if not match:
+            print('not match')
+            if last:
+                Lexer.__throw_token_error(s)
+            else:
+                return None, i
+        print('match')
+        return s, j
 
     def __scan_str(i, line, delim):
         s = ''
@@ -431,7 +397,9 @@ class Parser:
                 node.add_child(self.prev[0], self.prev[1])
                 self.__expect('=')
                 node.add_child(self.prev[0], self.prev[1])
-                if self.__accept('string') or self.__accept('number'):
+                if self.__accept('string')\
+                or self.__accept('number')\
+                or self.__accept('boolean'):
                     node.add_child(self.prev[0], self.prev[1])
                 else:
                     self.__throw_assignment_error(self.prev[1])                    
@@ -880,7 +848,8 @@ class Interpreter:
 
         subreddit = Storable('scan_subreddit', 'all')
         sections = Storable('scan_sections', 'hot,trending,new')
-        stors = [subreddit, sections]
+        skip_comments = Storable('skip_comments', False)
+        stors = [subreddit, sections, skip_comments]
 
         tokens = Lexer.lexer(code)
         print('identifiers:\n', idns)
