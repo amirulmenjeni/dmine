@@ -32,14 +32,11 @@ class Lexer:
     
         i = 0
         c = ''
-        errored_token = ''
-        #print('Line length:', len(line))
+        opt_chars = '[(){}<>!=andornotin]'
         while i < len(line):
             errored_token = line[i]
             # Ignore whitespace.
             if Lexer.__is_whitespace(line[i]):
-                #print('---WHITESPACE---')
-                #print('    i: %s, c: %s' % (i, line[i]))
                 i += 1
 
             # Ignore new lines.
@@ -54,32 +51,22 @@ class Lexer:
             #
             # Boolean is also consists of alphabetical chars, 
             # similar to identifier.
-            elif re.match('[_a-zA-Z]', line[i]) or\
-                 Lexer.__is_operator(line[i]):
+            elif re.match('[_a-zA-Z]', line[i])\
+            or   re.match(opt_chars, line[i]):
 
                 operator = ''
                 identifier = ''
                 boolean = ''
 
-                # Assume it's a starting character of a boolean value,
-                # either True or False.
-                print('testing boolean:', i)
+                # Assume it's a boolean value.
                 boolean, i = Lexer.__scan(
                     i, line, '[TrueFalse]', '^(True|False)$'
                 )
                 if boolean:
                     tokens.append(('boolean', boolean))
                     continue
-                print('not boolean...', i)
 
-
-                # The operator tokens contains symbolic characters
-                # as well as alphabetical characters (for 'not', 'in', etc).
-                # So if the operator starts with a symbolic char, 
-                # the remaining chars of the operator must be symbolic
-                # char as well. Same applied with alphabetical operators.
-                print('testing operator:', i)
-                opt_chars = '[(){}<>!=andornotin]'
+                # Assume it's an operator.
                 opts = '^(\(|\)|\{|\}|<|<=|>|>=|==|!=|=|and|or|not|in)$'
                 operator, i = Lexer.__scan(
                     i, line, opt_chars, opts
@@ -87,19 +74,14 @@ class Lexer:
                 if operator:
                     tokens.append((operator, ''))
                     continue
-                print('not operator...', i)
-
-                # Assume it's a starting character of an identifier, since
-                # the alphabetical chars in the operators is a subset
-                # of the chars in the identifiers.
-                print('testing identifier:', i)
+                
+                # Assume it's an identifier.
                 identifier, i = Lexer.__scan(
                     i, line, '[_a-zA-Z0-9]', '^[a-zA-Z0-9_]+$', last=True
                 )
-                if identifier and not Lexer.__is_operator_valid(identifier):
+                if identifier:
                     tokens.append(('identifier', identifier))
                     continue
-                print('not identifier...', i)
 
 
             # TYPE: string
@@ -145,7 +127,6 @@ class Lexer:
                 Lexer.__throw_token_error(errored_token)
                 logging.error(msg)
                 raise ValueError(msg)
-            print(tokens)
 
         tokens.append(('EOF', ''))
         return tokens
@@ -155,28 +136,11 @@ class Lexer:
         logging.error(msg)
         raise ValueError(msg)
 
-    def __is_operator(c):
-        regex = '[(){}<>!=andornotin]'
-        return re.match(regex, c) is not None
-
-    def __is_operator_valid(operator):
-        valid_operators = ['(', ')', '{', '}', '<', '<=', '>', '>=',\
-                           '==', '!=', '=', 'and', 'or', 'not', 'in'] 
-        return operator in valid_operators
-
-    def __is_storable_valid(storable):
-        regex = '^\$[\_a-zA-Z0-9]+$'
-        return re.match(regex, storable) is not None
-
     def __is_whitespace(c):
         return c == ' ' or c == '\t'
 
     def __is_newline(c):
         return c == '\n'
-
-    def __is_identifier(i, line):
-        c = line[i]
-        return re.match('[a-zA-Z0-9_]', line[i]) is not None
 
     def __scan(i, line, chars_pattern, token_pattern, last=False):
         """
@@ -196,7 +160,6 @@ class Lexer:
         # a token's boundary.
         if line[i] in ('{', '}', '(', ')'):
             if re.match(token_pattern, line[i]):
-                print('returning delimiter:', line[i])
                 return line[i], j + 1
             else:
                 return None, i
@@ -207,29 +170,23 @@ class Lexer:
         while j < len(line) and not re.match(delimiter, line[j]):
             s += line[j]
             j += 1
-            print('s:', s)
 
         # Try to match the scanned string `s` with the `token_pattern`
         # regex string. If it doesn't match, then return None and 
         # restore the current index (by returning `i`).
-        print('token pattern:', token_pattern)
         match = re.match(token_pattern, s)
         if not match:
-            print('not match')
             if last:
                 Lexer.__throw_token_error(s)
             else:
                 return None, i
-        print('match')
         return s, j
 
     def __scan_str(i, line, delim):
         s = ''
-        #print('i: ', i, 'delim:', delim)
         j  = i + 1
         while j < len(line) and line[j] != delim:
             s += line[j]
-            #print('j: ', j, 's:', s)
             j += 1
 
         # Ensure that an end quote char exists.
@@ -239,11 +196,6 @@ class Lexer:
         except IndexError:
                 Lexer.__throw_token_error(delim + s)
         return s, j + 1 # +1 because of the end quote char.
-
-    # Returns True if the number is valid -- either an integer
-    # or a floating point number.
-    def __is_valid_number(number):
-        return re.match('^\-?\d+(\.\d+)?$', number) is not None
 
 class Parser:
     """
@@ -563,11 +515,8 @@ class Evaluator:
                 # Once we finished parsing each nodes in EXPR,
                 # create the output dict and return it.
                 out = {}
-                print('idns:', idns)
-                print('stor:', stors)
                 for i in range(len(n.children)):
                     m = n.children[i]
-                    print('m:', m.symbol, m.value)
                     if m.symbol == 'identifier':
                         out[(m.symbol, m.value)] = n.children[i + 2].value
                     elif m.symbol == 'storable':
@@ -617,7 +566,6 @@ class Evaluator:
         This method only changes the structure of node n, and does not
         return anything.
         """
-#        print('OPERATING:', n.symbol, n.value,\
 #              [(c.symbol, c.value) for c in n.children])
 
         # If a node has only one child (i.e. no evaluation takes place),
@@ -819,7 +767,6 @@ class Interpreter:
             if not is_touched:
                 out[('identifier', idn.name)] = True
 
-        print('b4 out:', out)
         # Assign untouched variables (storables) with their default
         # values.
         for s in Interpreter.storables:
