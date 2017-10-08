@@ -87,7 +87,7 @@ To see more scrape filter components and arguments for the *reddit*
 spider, execute the following.
 
 ```
-$ dmine -F reddit2
+$ dmine -F reddit
 ```
 
 ### Other Useful Features
