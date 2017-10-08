@@ -1,4 +1,4 @@
-.# About
+# About
 
 **dmine** is a webscraping tool that aims to trivialize the process of extracting data from target websites. 
 It make use of a simple scripting language called 
