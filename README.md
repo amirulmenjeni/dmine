@@ -5,7 +5,7 @@ It make use of a simple scripting language called
 [Scrape Filter Language (SFL)](Scrape-Filter-Language) to help you easily filter out unwanted data.
 
 
-**NOTE:** This project is part of internship program under [Pixelated Enterprise](www.pixelated.asia).
+**NOTE:** This project is part of internship program under [Pixelated Enterprise](http://www.pixelated.asia).
 
 
 # Quick Guide
