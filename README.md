@@ -62,11 +62,11 @@ ARGUMENT VARIABLES:
  skip_comments: Skip comments for each scanned post if set to True.
 ```
 
-From the above output we know that the *reddit* spider scrape components
+From the above output we know that the *reddit* spider scrape the components
 called *post* and *comment*. We also understand that *score*, *title*, *subreddit*,
 and *author* are the attributes of the *post* component.
 
-Also note that we know some arguments that the spider takes in to change its behaviour.
+Also note that we know some arguments that the spider can take in order to change its behaviour.
 For example, the *subreddits* argument variable allow us to determine which subreddit(s)
 to scrape from.
 
