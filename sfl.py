@@ -617,11 +617,14 @@ class Evaluator:
                 # Handling the occurence when left or right operand
                 # has not been assigned any value.
                 if right is None or left is None:
+                    # This is the side effect of calling
+                    # to evaluate the parse tree before assigning
+                    # values to the components' attributes.
                     msg = 'An operand has no value assigned. Ignoring '\
                           'the \'<%s> %s <%s>\' operation.'\
                           % (n.children[i - j - 1].symbol, 
                              opt, n.children[i].symbol)
-                    logging.warning(msg)
+                    logging.debug(msg)
                     continue
 
                 operate = {
