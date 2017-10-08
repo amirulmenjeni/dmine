@@ -343,14 +343,16 @@ class Utils:
     This class contains utility methods, and should not be instantiated.
     """
 
-    # @param data: The dict to write to the file.
-    # @param filename: The filename of the file.
-    # @param file_format: The format the data is written into the file.
-    #
-    # If no filename is specified, then print to stdout.
-    # Otherwise, print to specified file. The default output
-    # format is JSON.
     def dict_to_file(data, filename=None, file_format='json'):
+        """
+        @param data: The dict to write to the file.
+        @param filename: The filename of the file.
+        @param file_format: The format the data is written into the file.
+       
+        If no filename is specified, then print to stdout.
+        Otherwise, print to specified file. The default output
+        format is JSON.
+        """
 
         # Store in JSON format.
         if file_format == 'json':
@@ -381,19 +383,21 @@ class Utils:
                 row = ','.join(['\"' + v + '\"' for v in list(data.values())])
                 sys.stdout.write(row)
 
-    # @param component_loader: A component loader object.
-    # @param out_dir: The directory location in which to put the
-    #                 written files for each component.
-    # @param file_format: The format in which the data is stored.
-    #
-    # If the path `out_dir` doesn't exists, create the directory path
-    # and store the data file for each scraped components to `out_dir`.
-    # The name of each file should have a basename corresponding
-    # to `component_loader.name`, and its extension should be
-    # `file_format`.
     def component_loader_to_file(\
             component_loader, out_dir, file_format='json'\
         ):
+        """
+        @param component_loader: A component loader object.
+        @param out_dir: The directory location in which to put the
+                        written files for each component.
+        @param file_format: The format in which the data is stored.
+       
+        If the path `out_dir` doesn't exists, create the directory path
+        and store the data file for each scraped components to `out_dir`.
+        The name of each file should have a basename corresponding
+        to `component_loader.name`, and its extension should be
+        `file_format`.
+        """
         
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
@@ -411,6 +415,18 @@ class Utils:
             with open(file_path, 'a') as f:
                 s = json.dumps(data)
                 f.write(s + '\n')
+
+    def sfl_file_to_string(sfl_file):
+        """
+        @param sfil_file: The plain text file containing the SFL script 
+                          to be used to filter a spider's scrape data.
+
+        This method returns the contents of `sfl_file` as string.
+        """
+        out = ''
+        with open(sfl_file, 'r') as f:
+            out += f.read()
+        return out
 
 class Spider:
     """
