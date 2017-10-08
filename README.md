@@ -66,7 +66,7 @@ $ dmine -s my_spider -f my_spider_filter.sfl
 
 You can learn more about SFL [here](Scrape-Filter-Language).
 
-# Example: Using Reddit Spider
+### Example: Using Reddit Spider
 
 Only collect posts with positive scores and
 submitted from the subreddit  [r/gaming](https://www.reddit.com/r/gaming)
@@ -103,5 +103,16 @@ file called `data.jsonl`.
 ```
 $ dmine -s reddit -w jsonl -o data.jsonl
 ```
+
+The above example will store the data from *all* components in one
+file. If you want to store the collected data separately per
+component, run:
+
+```
+$ dmine -s reddit -w jsonl -O my_dir
+```
+
+This will make the data written on separate files inside the 
+`my_dir` directory.
 
 Simply execute `$ dmine -h` to know more.
