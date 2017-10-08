@@ -9,6 +9,7 @@ import threading
 import time
 import logging
 import math
+import re
 from dmine import Utils, Spider, ScrapeFilter, ComponentLoader
 from spiders import *
 
@@ -23,7 +24,9 @@ def main():
              )
     parser.add_argument('-f', '--filter', default='', 
                         metavar='<scrap_filter_string>',
-                        help='Scrape Filter Language string.')
+                        help='Scrape Filter Language (SFL) string or '\
+                             'a text file containing SFL. The text file '\
+                             'must a .sfl extension.')
 
     parser.add_argument('-F', '--filter-detail',
                         metavar='<spider_name>',
@@ -162,9 +165,18 @@ def main():
 def run_spider(instance, args):
     timeout = time.time() + args.timeout
 
+    # If args.filter value is an sfl file, then use the utility method
+    # to read the file.
+    sfl_script = args.filter
+    if re.match('^.+\.sfl$', args.filter):
+        print('reading from file:', args.filter)
+        sfl_script = Utils.sfl_file_to_string(args.filter)
+
+    print(sfl_script)
+
     # Set up scrape filter.
     scrape_filter = ScrapeFilter(
-                          args.filter, 
+                          sfl_script,
                           spider_name=instance.name
                       )
     instance.setup_filter(scrape_filter)
