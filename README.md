@@ -89,7 +89,7 @@ shown above.
 @skip_comments = True
 
 post {
-	score > 0
+    score > 0
     and
     ('awesome' in title and not 'gore' in title)
 }
@@ -103,8 +103,9 @@ You can learn more about SFL [here](Scrape-Filter-Language).
 such as a timer to limit the duration of how long the spider will run and
 specifying its output format.
 
-The following example will run the *reddit* spider for a maximum 3 hours, save the scraped data
-as `jsonlines` format in a file called `data.jsonl`.
+The following example will run the *reddit* spider for a maximum 3 of 
+hours, and save the scraped data as `jsonlines` format in a 
+file called `data.jsonl`.
 
 ```
 $ dmine -s reddit -w jsonl -o data.jsonl
