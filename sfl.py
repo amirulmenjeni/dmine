@@ -113,9 +113,9 @@ class Lexer:
             # A token of type storable must starts with the
             # `$` character. Then the following characters
             # follows the identifier pattern rule.
-            elif line[i] == '$':
+            elif line[i] == '@':
                 storable, i = Lexer.__scan(
-                    i, line, '[\_\$a-zA-Z0-9]', '\$[a-zA-Z0-9_]+'
+                    i, line, '[\_\@a-zA-Z0-9]', '\@[a-zA-Z0-9_]+'
                 )
                 if storable:
                     tokens.append(('storable', storable))
@@ -525,6 +525,7 @@ class Evaluator:
                 out = {}
                 for i in range(len(n.children)):
                     m = n.children[i]
+                    print('m:', m.symbol, m.value)
                     if m.symbol == 'identifier':
                         out[(m.symbol, m.value)] = n.children[i + 2].value
                     elif m.symbol == 'storable':
@@ -574,7 +575,6 @@ class Evaluator:
         This method only changes the structure of node n, and does not
         return anything.
         """
-#              [(c.symbol, c.value) for c in n.children])
 
         # If a node has only one child (i.e. no evaluation takes place),
         # then just take the child's value.
@@ -774,8 +774,11 @@ class Interpreter:
         should be scraped. Any component that does not show up in the filter
         code will automatically be flagged as True.
         """
-    
+   
+        # Use a clone of the parse tree, since `Evaluator.eval` modifies
+        # the parse tree.
         ptree_clone = copy.deepcopy(Interpreter.parse_tree)
+
         out = Evaluator.eval(ptree_clone, 
                             Interpreter.identifiers,
                             Interpreter.storables)
@@ -933,7 +936,12 @@ class Storable:
     name = ''
     default_value = ''
 
-    def __init__(self, name, default_value='', prefix='$'):
+    def __init__(self, name, default_value='', prefix='@'):
+        """
+        @param name: The name of the storable (without prefix).
+        @param default_value: The default value of this storable.
+        @param prefix: The prefix used to indicate variable.
+        """
         self.fname = prefix + name
         self.name = name
         self.default_value = default_value

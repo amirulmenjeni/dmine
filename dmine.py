@@ -170,7 +170,6 @@ class Variable:
         Convert a given variable's value to its specified type.
         """
         if self.type == bool:
-            print('type bool:', value)
             if value in (1, 'True'):
                 return True
             elif value in (0, 'False'):
