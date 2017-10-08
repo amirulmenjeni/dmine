@@ -525,7 +525,6 @@ class Evaluator:
                 out = {}
                 for i in range(len(n.children)):
                     m = n.children[i]
-                    print('m:', m.symbol, m.value)
                     if m.symbol == 'identifier':
                         out[(m.symbol, m.value)] = n.children[i + 2].value
                     elif m.symbol == 'storable':

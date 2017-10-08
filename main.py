@@ -183,12 +183,11 @@ def run_spider(instance, args):
                           args.filter, 
                           spider_name=instance.name
                       )
-    instance.scrape_filter = scrape_filter
     instance.setup_filter(scrape_filter)
-    instance.scrape_filter.run_interpreter()
+    scrape_filter.run_interpreter()
 
     # Start spider.
-    results = instance.start()
+    results = instance.start(scrape_filter)
 
     if results is None:
         logging.warning('No data is generated from %s.start().' %

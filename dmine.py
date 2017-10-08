@@ -295,7 +295,6 @@ class ScrapeFilter:
         """
         Interpreter.feed(self)
         sfl_output = Interpreter.output()
-        print('sfl out:', sfl_output)
         for key in sfl_output:
             sym, name = key 
             val = sfl_output[key]
@@ -413,9 +412,11 @@ class Utils:
                 s = json.dumps(data)
                 f.write(s + '\n')
 
-# This is an abstract class. All spider that runs on dmine should
-# inherit this class.
 class Spider:
+    """
+    This is an abstract class. All spider that runs on dmine should
+    inherit this class and overwrite its abstract methods.
+    """
     __metaclass__ = ABCMeta 
     name = ''
     args = None
@@ -426,7 +427,6 @@ class Spider:
         this class) is initialized, its name attribute is checked whether
         its name is unique or not.
         """
-        self.scrape_filter = None
         self.input_group = None
         self.name = ''
         self.args = None
@@ -446,36 +446,29 @@ class Spider:
 
     @abstractmethod
     def setup_filter(self, scrape_filter):
+        """
+        This scrape filter's definitions (i.e. its components and variables)
+        must be defined here.
+        """
         # TODO
         # Overwritten by inheritor.
         # Spider dev define scrape filter here.
         pass
 
     @abstractmethod
-    def setup_input(self, input_group):
-        # TODO
-        # Overwritten by inheritor.
-        # Spider dev define his spider input here.
-        pass
-
-    @abstractmethod
-    def start(self, component_group, input_group):
+    def start(self, scrape_filter):
+        """
+        Start spider.
+        """
         # TODO
         # Spider do job.
         pass
 
-    # @param timer_sec: Time in the given unit. By default, `time_sec`
-    #                   is interpreted in seconds.
-    # @param unit: The unit for the time `timer_sec`.
-    #
-    # Terminate running the spider when the spider
-    # has run for `time` unit.
-    def timer(self, time, unit='s'):
-        if unit not in ['s', 'm', 'h']:
-            logging.error('Invalid time unit: %s.' % unit)
-            raise
-
 class ComponentLoader:
+    """
+    This class used to pass the scraped data as components instead
+    of just raw dictionary data.
+    """
 
     name = ''
     data = {}
@@ -488,7 +481,7 @@ class ComponentLoader:
 
     def set_data(self, data):
         if not isinstance(data, dict):
-            logging.error('Data is expected to be of type \'int\' but '
+            logging.error('Data is expected to be of type \'dict\' but '
                           '\'%s\' received.' 
                           % (dict.__name__, int.__name__))
             raise
