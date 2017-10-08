@@ -81,8 +81,9 @@ $ dmine -s reddit -f "@subreddits = 'gaming, videos' @skip_comments = True post 
 ```
 
 If you have a lengthy SFL script, you can save the SFL script in a file with a `.sfl` extension 
-and then pass it to `-f` option. The following SFL have the same filtering effect as the one
-shown above.
+and then pass it to `-f` option. 
+
+Save the SFL script below as `my_filter.sfl`
 
 ```
 @subreddits = 'gaming, videos'
@@ -93,6 +94,12 @@ post {
     and
     ('awesome' in title and not 'gore' in title)
 }
+```
+
+Then run the following command.
+
+```
+$ dmine -s spider -f my_filter.sfl
 ```
 
 You can learn more about SFL [here](Scrape-Filter-Language).
