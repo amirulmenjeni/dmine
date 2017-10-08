@@ -25,21 +25,10 @@ def main():
                         metavar='<scrap_filter_string>',
                         help='Scrape Filter Language string.')
 
-    parser.add_argument('-i', '--input', 
-                        metavar='<input_string>',
-                        dest='spider_input',
-                        help='Spider input string.')
-
     parser.add_argument('-F', '--filter-detail',
                         metavar='<spider_name>',
                         dest='filter_detail',
                         help='Show scrap filter detail for a spider '\
-                             'named <spider_name>.')
-
-    parser.add_argument('-I', '--input-detail',
-                        metavar='<spider_name>',
-                        dest='input_detail',
-                        help='Show input detail for a specific spider '\
                              'named <spider_name>.')
 
     parser.add_argument('-s', '--spider', default='',
@@ -147,11 +136,6 @@ def main():
     # Show the scrap filter detail of a given spider and exit.
     if args.filter_detail:
         print_filter_detail(args.filter_detail, spider_classes) 
-        sys.exit()
-
-    # Show the input detail of a given spider and exit.
-    if args.input_detail:
-        print_input_detail(args.input_detail, spider_classes)
         sys.exit()
 
     # Run the spider if it is given.
