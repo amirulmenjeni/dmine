@@ -5,7 +5,7 @@ comprehensive documentation please head over to our [wiki](https://github.com/am
 
 **dmine** is a webscraping tool that aims to trivialize the process of extracting data from target websites. 
 It make use of a simple scripting language called 
-[Scrape Filter Language (SFL)](Scrape-Filter-Language) to help you easily filter out unwanted data.
+*Scrape Filter Language* (SFL) to help you easily filter out unwanted data.
 
 
 **NOTE:** This project is part of internship program under [Pixelated Enterprise](http://www.pixelated.asia).
