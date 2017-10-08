@@ -1,137 +1,113 @@
-# This project is part of internship program under 
-[Pixelated Enterprise](http://www.pixelated.asia).
+.# About
 
-- [About Dmine](https://github.com/amirulmenjeni/dmine/blob/master/README.md#about-dmine)
-- [Using Dmine](https://github.com/amirulmenjeni/dmine/blob/master/README.md#using-dmine)
-
-## ABOUT 
-
-Dmine is webscraping tool that extract data from targeted websites. 
-Currently, we are working on supporting widely used social media platform 
-around the globe; [Reddit](http://www.reddit.com), 
-[Twitter](http://www.twitter.com) and [Facebook](http://www.facebook.com). 
-
-## USAGE
-
-### LISTING OUT AVAILABLE SPIDERS
-Dmine have a collection of spiders to choose from. Each spider has its own 
-target site(s). To view the currently available spiders, run the command
-
-    $ dmine -l
-    spider_1
-    spider_2
-    ...
-    
-Each line in the output represent the _name_ of each spider. 
-The names are supposed to be unique. By convention, the spider name 
-intuitively represent the site of its target. 
-
-### USING A SPIDER
-
-Suppose you want to run a spider named `spider_1`. 
-Then, you can simply run the spider my executing the
-following command.
-
-    $ dmine -s spider_1
-    
-### SCRAP FILTER
-
-If you want a spider to filter out the items that it collects, 
-use the [scrap filter](https://github.com/amirulmenjeni/dmine/wiki/Scrap-Filter) 
-that the spider provide. Each spider employ its own scrap filter. Therefore you 
-shouldn't assume that any two spiders share the same scrap filter. 
-Run the following command to find out the detail of a specific spider 
-(e.g. reddit).
-
-    $ dmine -F reddit
-    post (p):
-    A user submitted content to a subreddit (i.e. submission). Not to be confused with a comment.
-        title (t): 
-            Value type : STRING_COMPARISON
-            Info       : The title of the post.
-        score (s): 
-            Value type : INT_RANGE
-            Info       : The score of the post (i.e. upvotes/downvotes).
-        subreddit (r): 
-            Value type : STRING_COMPARISON
-            Info       : (No info available)
-        allow-subreddit (A): 
-            Value type : LIST
-            Info       : Specify which subreddit(s) allowed to be scraped.
-        block-subreddit (B): 
-            Value type : LIST
-            Info       : Specify which subreddit(s) not allowed to be scraped.
-
-    comment (c):
-    A user submitted comment to a particular post.
-        text (t): 
-            Value type : STRING_COMPARISON
-            Info       : (No info available)
-        score (s): 
-            Value type : INT_RANGE
-            Info       : (No info available)
-
-After we understood the detail of scrap filter for the reddit spider, we can 
-run the spider with its scrap filter as shown below.
-
-    $ dmine -s reddit -f "post{/title: 'kitten' in title /score: score > 0}"
-    
-As you may have expected, the scrap filter above will only take posts with 
-the word `kitten` in the title, with positive score. Another compact way
-of writing the above filter is like so:
-
-    $ dmine -s reddit -f "p{/t:'kitten' in x/s:x > 0}"
-
-Note that we use symbols rather than the names of the respective scrap 
-components and options.
-
-Any scrap option not specified in the scrap filter `-f` argument will be
-assumed to be `True`.
-
-You can learn more about scrap filter 
-[here](https://github.com/amirulmenjeni/dmine/wiki/Scrap-Filter).
-
-### SPIDER INPUT
-
-While a scrap filter is used to make a 'yes or no' selection as to 
-which component a spider's target website should scrape, a spider 
-input is used to pass information to the spider. 
-What this information is used for is up to the spider's developer to decide. 
-
-To find out what are inputs available for a specfic spider 
-(e.g. `reddit` spider), run the followig command:
-
-    $ dmine -I reddit
-    scan-subreddit (r):
-        Input type    : STRING
-        Default value : all
-        Info          : A whitespace separated list of subreddits to be
-                        scanned. By default, r/all will be scanned.
-    skip-comments (l):
-        Input type    : BOOLEAN
-        Default value : False
-        Info          : Skip comments entirely. This means the spider will
-                        scan posts or submissions, but its comments.
-
-    post-limit (No symbol):
-        Input type    : INTEGER
-        Default value : 999999
-        Info          : The limit on how many comments can be collected.
-                        The default is no limit.
-
-    ...
-
-Spider input syntax is a bit similar to scrap filter syntax. Using the 
-example above, suppose we want to only scan posts from r/gaming 
-and r/mmorpg, and we want to limit the number of posts collected to 100. 
-We could run the `reddit` spider command like so:
-
-    $ dmine -s reddit -i "/scan-subreddit: gaming mmorpg /post-limit: 100"
-
-Similar to scrap filter, we can use symbols instead of the names of 
-each spider input.
-
-    $ dmine -s reddit -i "/r: gaming mmorpg /post-limit: 100"
+**dmine** is a webscraping tool that aims to trivialize the process of extracting data from target websites. 
+It make use of a simple scripting language called 
+[Scrape Filter Language (SFL)](Scrape-Filter-Language) to help you easily filter out unwanted data.
 
 
+**NOTE:** This project is part of internship program under [Pixelated Enterprise](www.pixelated.asia).
 
+
+# Quick Guide
+
+### Listing Available Spiders
+
+**dmine** comes with built-in spiders, each specifically named after its target website. You can also
+[create your own spider](Createing-A-Spider) to allow it take advantage of SFL for easy filtering.
+
+```
+$ dmine -l
+reddit
+twitter
+my_spider
+...
+```
+
+### Using A Spider
+
+To start scraping a spider, use the `-s` argument and pass the name of the spider you want to use.
+For example, to run a spider named *reddit*, execute the following command.
+
+```
+$ dmine -s reddit
+```
+
+### Filtering data using Scrape Filter Language (SFL)
+
+SFL revolves around the idea that a website is made up of different components composed of different
+attributes. Every spider that want to scrape a target website must first determine and defines the 
+components of the website it is targeting.
+
+To find out the components defined by *reddit* spider, for example, run the following command.
+
+```
+$ dmine -F reddit
+COMPONENTS:
+
+ post: A user post or submission.
+     score: The upvote/downvote score of the post.
+     title: The title of the post.
+     subreddit: The subreddit to which the post is uploaded.
+     author: The redditor who posted this post.
+
+ comment: A user comment with respect to a post.
+     score: The upvote/downvote score of the comment.
+     body: The comment text body.
+     author: The redditor who posted this comment.
+
+ARGUMENT VARIABLES:
+
+ subreddits: The list of subreddits to scan, seperated by comma.
+ sections: Get submissions that only presents in this list.
+ skip_comments: Skip comments for each scanned post if set to True.
+```
+
+From the above output we know that the *reddit* spider scrape components
+called *post* and *comment*. We also understand that *score*, *title*, *subreddit*,
+and *author* are the attributes of the *post* component.
+
+Also note that we know some arguments that the spider takes in to change its behaviour.
+For example, the *subreddits* argument variable allow us to determine which subreddit(s)
+to scrape from.
+
+Finally, we can get into the filtering part. Suppose we want to only collect user submissions
+that has positive a score, and the word 'awesome' must be present in its title, but not 'gore'. 
+Also, we want to skip scanning over the comments from each post, and only scan the
+posts in *gaming* and *videos* subreddits. We pass the SFL script to `-f` option,
+as shown in the following example.
+
+```
+$ dmine -s reddit -f "@subreddits = 'gaming, videos' @skip_comments = True post {score > 0 and ('awesome' in title and not 'gore' in title)}"
+```
+
+If you have a lengthy SFL script, you can save the SFL script in a file with a `.sfl` extension 
+and then pass it to `-f` option. The following SFL have the same filtering effect as the one
+shown above.
+
+```
+@subreddits = 'gaming, videos'
+@skip_comments = True
+
+post {
+	score > 0
+    and
+    ('awesome' in title and not 'gore' in title)
+}
+```
+
+You can learn more about SFL [here](Scrape-Filter-Language).
+
+### Other Useful Features
+
+**dmine** comes with several useful features to control the running spiders and its output,
+such as a timer to limit the duration of how long the spider will run and
+specifying its output format.
+
+The following example will run the *reddit* spider for a maximum 3 hours, save the scraped data
+as `jsonlines` format in a file called `data.jsonl`.
+
+```
+$ dmine -s reddit -w jsonl -o data.jsonl
+```
+
+Simply execute `$ dmine -h` to know more.
