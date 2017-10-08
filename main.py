@@ -169,7 +169,6 @@ def run_spider(instance, args):
     # to read the file.
     sfl_script = args.filter
     if re.match('^.+\.sfl$', args.filter):
-        print('reading from file:', args.filter)
         sfl_script = Utils.sfl_file_to_string(args.filter)
 
     print(sfl_script)
