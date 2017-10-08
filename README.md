@@ -25,84 +25,70 @@ my_spider
 
 ### Using A Spider
 
-To start scraping a spider, use the `-s` argument and pass the name of the spider you want to use.
-For example, to run a spider named *reddit*, execute the following command.
+To start scraping a spider, use the `-s` argument and 
+pass the name of the spider that you want to use.
 
 ```
-$ dmine -s reddit
+$ dmine -s my_spider
 ```
 
-### Filtering data using Scrape Filter Language (SFL)
+### Scrape Filter Language (SFL)
 
-SFL revolves around the idea that a website is made up of different components composed of different
-attributes. Every spider that want to scrape a target website must first determine and defines the 
-components of the website it is targeting.
+The Scrape Filter Language (SFL) revolves around the idea that a 
+website is made up of different components having one or more
+attributes. It is therefore a requirement to know beforehand
+which components a spider can "see" on its target
+website.
 
-To find out the components defined by *reddit* spider, for example, run the following command.
-
-```
-$ dmine -F reddit
-COMPONENTS:
-
- post: A user post or submission.
-     score: The upvote/downvote score of the post.
-     title: The title of the post.
-     subreddit: The subreddit to which the post is uploaded.
-     author: The redditor who posted this post.
-
- comment: A user comment with respect to a post.
-     score: The upvote/downvote score of the comment.
-     body: The comment text body.
-     author: The redditor who posted this comment.
-
-ARGUMENT VARIABLES:
-
- subreddits: The list of subreddits to scan, seperated by comma.
- sections: Get submissions that only presents in this list.
- skip_comments: Skip comments for each scanned post if set to True.
-```
-
-From the above output we know that the *reddit* spider scrape the components
-called *post* and *comment*. We also understand that *score*, *title*, *subreddit*,
-and *author* are the attributes of the *post* component.
-
-Also note that we know some arguments that the spider can take in order to change its behaviour.
-For example, the *subreddits* argument variable allow us to determine which subreddit(s)
-to scrape from.
-
-Finally, we can get into the filtering part. Suppose we want to only collect user submissions
-that has positive a score, and the word 'awesome' must be present in its title, but not 'gore'. 
-Also, we want to skip scanning over the comments from each post, and only scan the
-posts in *gaming* and *videos* subreddits. We pass the SFL script to `-f` option,
-as shown in the following example.
+To find out the SFL components and arguments defined by 
+*my_spider*, run the following command.
 
 ```
-$ dmine -s reddit -f "@subreddits = 'gaming, videos' @skip_comments = True post {score > 0 and ('awesome' in title and not 'gore' in title)}"
+$ dmine -F my_spider
+```
+
+Then we pass the SFL script to `-f` argument, as shown in the following example.
+
+```
+$ dmine -s my_spider -f "component_1 { 0 < attr_1 < 100 and 'some_string' in attr_2}"
 ```
 
 If you have a lengthy SFL script, you can save the SFL script in a file with a `.sfl` extension 
-and then pass it to `-f` option. 
+and then pass it to `-f` option. SFL ignores all whitespaces and newlines.
 
-Save the SFL script below as `my_filter.sfl`
-
-```
-@subreddits = 'gaming, videos'
-@skip_comments = True
-
-post {
-    score > 0
-    and
-    ('awesome' in title and not 'gore' in title)
-}
-```
-
-Then run the following command.
+Suppose you have an SFL script saved in the file called `my_spider_filter.sfl`, 
+for a spider called *my_spider*, you can simply pass the file name to
+`-f` argument.
 
 ```
-$ dmine -s spider -f my_filter.sfl
+$ dmine -s my_spider -f my_spider_filter.sfl
 ```
 
 You can learn more about SFL [here](Scrape-Filter-Language).
+
+# Example: Using Reddit Spider
+
+Only collect posts with positive scores and
+submitted from the subreddit  [r/gaming](https://www.reddit.com/r/gaming)
+and [r/linuxmemes](https://www.reddit.com/r/linuxmemes) with
+all comments collected:
+
+```
+$ dmine -s reddit -f "@subreddits = 'gaming, linuxmemes' post { score > 0 }"
+```
+
+Make the spider skips trodding the comments in each treaded post:
+
+```
+$ dmine -s reddit -f "@skip_comments = True"
+```
+
+To see more scrape filter components and arguments for the *reddit*
+spider, execute the following.
+
+```
+$ dmine -F reddit2
+```
 
 ### Other Useful Features
 
