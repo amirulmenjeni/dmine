@@ -1,5 +1,8 @@
 # About
 
+This README will only cover several key features of **dmine** briefly. For a more
+comprehensive documentation please head over to our [wiki](https://github.com/amirulmenjeni/dmine/wiki).
+
 **dmine** is a webscraping tool that aims to trivialize the process of extracting data from target websites. 
 It make use of a simple scripting language called 
 [Scrape Filter Language (SFL)](Scrape-Filter-Language) to help you easily filter out unwanted data.
@@ -13,7 +16,7 @@ It make use of a simple scripting language called
 ### Listing Available Spiders
 
 **dmine** comes with built-in spiders, each specifically named after its target website. You can also
-[create your own spider](Createing-A-Spider) to allow it take advantage of SFL for easy filtering.
+create your own spider to allow it take advantage of SFL for easy filtering.
 
 ```
 $ dmine -l
@@ -63,8 +66,6 @@ for a spider called *my_spider*, you can simply pass the file name to
 ```
 $ dmine -s my_spider -f my_spider_filter.sfl
 ```
-
-You can learn more about SFL [here](Scrape-Filter-Language).
 
 ### Example: Using Reddit Spider
 
