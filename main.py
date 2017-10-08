@@ -171,8 +171,6 @@ def run_spider(instance, args):
     if re.match('^.+\.sfl$', args.filter):
         sfl_script = Utils.sfl_file_to_string(args.filter)
 
-    print(sfl_script)
-
     # Set up scrape filter.
     scrape_filter = ScrapeFilter(
                           sfl_script,
