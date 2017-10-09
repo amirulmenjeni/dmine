@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['src/main.py', 'src/spiders/tweet_spider.py', 'src/spiders/reddit_spider.py'],
-             pathex=['./src', './dep', '/home/amenji/git/dmine'],
+             pathex=['./src', './py-dependencies', '/home/amenji/git/dmine'],
              binaries=[],
              datas=[('./src/README.md', '.'), ('./src/spiders', './spiders/')],
              hiddenimports=[],
