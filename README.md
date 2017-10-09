@@ -97,12 +97,12 @@ $ dmine -F reddit
 such as a timer to limit the duration of how long the spider will run and
 specifying its output format.
 
-The following example will run the *reddit* spider for a maximum 3 of 
+The following example will run the *reddit* spider for a maximum duration of 3 
 hours, and save the scraped data as `jsonlines` format in a 
 file called `data.jsonl`.
 
 ```
-$ dmine -s reddit -w jsonl -o data.jsonl
+$ dmine -s reddit -w jsonl -o data.jsonl -t 3:00:00
 ```
 
 The above example will store the data from *all* components in one
