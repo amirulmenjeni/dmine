@@ -12,6 +12,7 @@ fi
 # Base name of the executable file.
 name="dmine"
 
+# Use this method to add paths for pyinstaller.
 paths=""
 function add_path {
     semicolon=""
@@ -21,20 +22,7 @@ function add_path {
     paths=$paths$semicolon$1
 }
 
-function auto_add_paths {
-    while read -r line;
-    do
-        add_path $line
-    done < <(find $1 -type d | grep -v "__pycache__$"\
-                             | grep -v "dist-info$")
-}
-
-hidden_import_args=""
-function add_hidden_import {
-    arg="--hidden-import=$1 "
-    hidden_import_args=$hidden_import_args$arg
-}
-
+# Use this method to add arguments to pass to the pyinstaller.
 declare -a arguments
 function add_arg {
     arguments+=($1)
@@ -50,12 +38,12 @@ fi
 
 # Build the arguments.
 add_arg "--noconfirm --log-level=WARN"
-add_arg "--onedir"
+add_arg "--onedir" 
 add_arg "--clean"
 add_arg "--paths=$paths"
-add_arg "--additional-hooks-dir=./hooks"
 add_arg "--add-data=./src/README.md:."
 add_arg "--add-data=./src/spiders:./spiders/"
+add_arg "--additional-hooks-dir=./hooks"
 add_arg "--distpath=$install_path"
 add_arg "--name=$name"
 add_arg "./src/main.py "
@@ -63,9 +51,19 @@ while read -r line; do # Add all spiders.
     add_arg "$line "
 done < <(find ./src/spiders/ -maxdepth 1 -type f | grep -v __init__.py)
 
-echo "Installing dmine at: $install_path"
-/bin/pyinstaller ${arguments[@]}
+echo "Install directory: $install_path/$name"
+pyinstaller ${arguments[@]}
+
+echo "Creating symbolic link of the executable in /usr/local/bin."
+ln -s "$install_path/$name/$name" "/usr/local/bin/$name" 
+if [[ $? != 0 ]]; then
+    echo "Failed to create symbolic link."
+    exit
+fi
+
+echo "Done! To check if dmine installed correctly, type 'dmine'"
 
 if [[ -d build ]]; then
     rm -rf build
 fi
+
