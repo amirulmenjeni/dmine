@@ -1,0 +1,9 @@
+@skip_comments = True
+@subreddits = 'gaming, funny'
+
+post {
+    0 < score < 100
+    and 'awesome' in title
+    or (score == 12345)
+}
+
