@@ -86,6 +86,16 @@ class Component:
         for k in attributes:
             self.get(k).value = attributes[k]
 
+    def all_set(self):
+        """
+        Check if all the attributes in this component
+        has their values set to something (i.e. not None).
+        """
+        for k in self.attr:
+            if self.attr[k].value is None:
+                return False
+        return True
+
     def __throw_attr_name_error(self, name):
         msg = 'An attribute in the component \'%s\' with '\
               'the name \'%s\' already exists.'\
