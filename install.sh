@@ -4,7 +4,7 @@
 # dmine installer for Linux OS using pyinstaller.
 #
 
-install_path="./"
+install_path=$PWD
 if [[ "$#" == 1 ]]; then
     install_path="$1" 
 fi
@@ -51,13 +51,18 @@ while read -r line; do # Add all spiders.
     add_arg "$line "
 done < <(find ./src/spiders/ -maxdepth 1 -type f | grep -v __init__.py)
 
+if [[ ! -d $install_path ]]; then
+    echo "Error: '$install_path' is not a directory."
+    exit
+fi
+
 echo "Install directory: $install_path/$name"
 pyinstaller ${arguments[@]}
 
 echo "Creating symbolic link of the executable in /usr/local/bin."
 ln -s "$install_path/$name/$name" "/usr/local/bin/$name" 
 if [[ $? != 0 ]]; then
-    echo "Failed to create symbolic link."
+    echo "Error: Failed to create symbolic link."
     exit
 fi
 
