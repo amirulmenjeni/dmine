@@ -113,7 +113,8 @@ class RedditSpider(Spider):
                 for comment in post.comments.list():
                     sf_comment.set_attr_values(
                         body=comment.body,
-                        score=comment.score
+                        score=comment.score,
+                        author=str(comment.author)
                     )
 
                     if sf_comment.should_scrape():
