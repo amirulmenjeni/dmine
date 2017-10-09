@@ -34,7 +34,7 @@ function add_arg {
 
 # Add paths for imports.
 add_path "./src"
-add_path "./py-dependencies"
+add_path "./dep-py"
 
 if [[ -d dist ]]; then
     rm -rf dist
