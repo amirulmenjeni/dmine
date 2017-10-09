@@ -1,14 +1,14 @@
 #!/bin/bash
 
 #
-# dmine installer for Linux OS using pyinstaller.
+# dmine builder for Linux OS using pyinstaller.
 #
 # Use this to build the folder containing an executable binary file
 # to run dmine together its data files and libraries.
 #
 # This script only accepts one positional argument -- the build path.
 
-build_path=$PWD
+build_path="$PWD/builds/linux"
 if [[ "$#" == 1 ]]; then
     build_path="$1" 
 fi
@@ -63,6 +63,9 @@ if [[ ! -d $build_path ]]; then
     echo "Error: '$build_path' is not a directory."
     exit
 fi
+
+# Move the .spec file to build dir.
+mv $name.spec $build_path
 
 if [[ -d build ]]; then
     rm -rf build
