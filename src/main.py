@@ -201,12 +201,15 @@ def run_spider(instance, args):
         if time.time() > timeout:
             break
 
+        data = None 
         if isinstance(r, ComponentLoader):
             data = r.data
+        else:
+            data = r
 
         if args.output_dir:
             Utils.component_loader_to_file(
-                r, args.output_dir, file_format=args.file_format
+                data, args.output_dir, file_format=args.file_format
             )
         else:
             Utils.dict_to_file(data, args.output_file, 
