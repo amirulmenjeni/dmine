@@ -201,7 +201,6 @@ class TweetSpider(Spider):
             tag_name=author.split(' ')[1]
             date_created=x.find_element_by_xpath(".//a[@class='tweet-timestamp js-permalink js-nav js-tooltip']").get_attribute('title')
             replies_response=x.find_element_by_xpath(".//div[@class='ProfileTweet-actionList js-actions']").text.split('\n')
-            print(replies_response)
             if len(contents.text) == 0:
                 contents.find_element_by_xpath("//div[@class='AdaptiveMediaOuterContainer']")
                 c_list.append("user replied with a gif/img file")
