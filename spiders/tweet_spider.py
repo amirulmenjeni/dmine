@@ -1,30 +1,28 @@
 import time
 import tweepy
-from collections import defaultdict
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 from dmine import Spider, ComponentLoader
 
-
-#   Simple Twitter spider using Tweepy and Selenium 
+#   Simple Twitter spider using Tweepy and Selenium
 #   You will need to generate your own API keys before accessing the Twitter api
-#   Guide on this is done: https://auth0.com/docs/connections/social/twitter
+#   Guide on how this is done: https://auth0.com/docs/connections/social/twitter
 
 access_token = "914875844623044609-sBDRGtzpWvcxVxznEutXO06IcPwNDbM"
 access_token_secret = "PlDBngjOu06GS9Bgu0wkOoehkag0ivzRc8ZJo3M7XtgSp"
 consumer_key = "fX7byz3KYiiQvfbs6xuCdgYYt"
 consumer_secret = "vGU5FngxDAPkzIc42bXsTKo5kgNEAhh6MibLDUYr0f4ApnHrzM"
 
-class Tweetspider(Spider):
+class TweetSpider(Spider):
     name = 'twitter'
-    
+
     def __init__(self):
         auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
         auth.set_access_token(access_token, access_token_secret)
         self.api = tweepy.API(auth)
         self.driver= self.init_driver()
-        
+
     def init_driver(self):
         driver = webdriver.PhantomJS(executable_path=r'C:\PhantomJs\bin\phantomjs\bin\phantomjs.exe')
         driver.wait = WebDriverWait(driver, 5)
@@ -33,28 +31,25 @@ class Tweetspider(Spider):
     def setup_filter(self, sf):
         sf.add_com('tweet', info="Tweet post")
         sf.add_com('tweet_user', info="Twitter user")
-        sf.add_com('replies', info="replies made to respective tweets")
+        sf.add_com('replies', info="replies made to respective tweet")
 
         # Attributes on Tweet post
         sf_tweet = sf.get('tweet')
         sf_tweet.add('author', info='author of the tweet')
         sf_tweet.add('lang', info='The language of the tweet post')
-        sf_tweet.add('retweet_count', 
+        sf_tweet.add('retweet_count',
                        info='The retweets of the tweet')
         sf_tweet.add('likes_count',  info='The likes of the tweet')
         sf_tweet.add('replies_count', info='Replies of the tweet')
 
 
-        """# Attributes on replies / comments [WIP]
+        # Attributes on replies / comments [WIP]
         sf_replies = sf.get('replies')
-        sf_replies.add('retweets', 
-                       info='The retweets of the comment')
-        sf_replies.add('likes', 
-                       info='The likes of the comment')
+        sf_replies.add('retweets', info='The retweets of the comment')
+        sf_replies.add('likes', info='The likes of the comment')
         sf_replies.add('body', info='The reply text body.')
         sf_replies.add('author', info='The user who posted')
-        """
-        
+
         # Attributes on user
         sf_user = sf.get('tweet_user')
         sf_user.add('username', info='On screen name of user')
@@ -64,10 +59,10 @@ class Tweetspider(Spider):
         sf_user.add('user_lang',info='Lang of user')
         sf_user.add('followers', info='No. of followers')
         sf_user.add('statuses_count', info='No. of tweets user has posted')
-       
+
         # Create variables.
         sf.add_var('tweet_type', default='mixed', info='Tweet types to scan: recent, popular and mixed')
-        sf.add_var('skip_comments', default=True, type=bool,info='Skip comments for each scanned tweet if set to True.')
+        sf.add_var('skip_replies', default=True, type=bool,info='Skip replies for each scanned tweet if set to True.')
         sf.add_var('skip_author_info', default=True, type=bool,info='Skip author info for each tweet')
         sf.add_var('limit', default= 5, info='limit results to be shown')
         sf.add_var('before', default = time.strftime("%d/%m/%Y"), info='tweet posted before date | Format: YYYY/MM/DD') #Only works up to 7 days from the current date
@@ -75,21 +70,20 @@ class Tweetspider(Spider):
         sf.add_var('lang', default="en", info='type of tweet')
 
     def start(self, sf):
-        
+
         searched_tweets = self.scrape(sf)
         sf_tweet = sf.get('tweet')
-        
+
         for x in searched_tweets:
 
-            tag_name =  x.user.screen_name 
+            tag_name =  x.user.screen_name
             user_name = x.user.name
             tweet_id=x.id
-                        
-            #store each comments on a list, append to comments_dict with their associate tweet id as key
-            replies_count= self.fetch_replies(tag_name, tweet_id, sf)
 
-            fav_count=self.fetch_fav()
-            
+            #store each comments on a list, append to comments_dict with their associate tweet id as key
+            replies_count = self.fetch_replies(tag_name, tweet_id, sf)
+            fav_count = self.fetch_fav()
+
             sf_tweet.set_attr_values(
                      author=tag_name,
                      lang=str(x.lang),
@@ -97,7 +91,7 @@ class Tweetspider(Spider):
                      replies_count=int(replies_count),
                      likes_count=fav_count
             )
-            
+
             if sf_tweet.should_scrape():
                 yield ComponentLoader('tweet', {
                                                  'Tweet id' : tweet_id,
@@ -110,11 +104,34 @@ class Tweetspider(Spider):
                                                  'replies' : replies_count,
                                                  'likes' : fav_count
                 })
-                
+
+
             if sf.ret('skip_author_info'):
                 continue
-            
-            self.get_author_info(x.user, sf) #why??
+
+            sf_user=sf.get('tweet_user')
+
+            sf_user.set_attr_values(
+                            tag_name=str(x.user.screen_name),
+                            username= str(x.user.name),
+                            location=str(x.user.location),
+                            followers=int(x.user.followers_count),
+                            user_lang=str(x.user.lang),
+                            statuses_count=int(x.user.statuses_count),
+                            isVerified=bool(x.user.verified)
+            )
+
+            if sf_user.should_scrape():
+                        yield ComponentLoader('tweet_user', {
+                            'user_id' : x.user.id,
+                            'tag_name' : x.user.screen_name,
+                            'username' :  x.user.name,
+                            'location' :  x.user.location,
+                            'user_lang' : x.user.lang,
+                            'followers' : x.user.followers_count,
+                            'statuses_count' : x.user.statuses_count,
+                            'is_verified' : x.user.verified,
+                        })
 
 
     def scrape(self, sf):
@@ -134,36 +151,11 @@ class Tweetspider(Spider):
                 last_id = new_tweets[-1].id
 
             except tweepy.TweepError as e:
-                
+
                 break
-      
+
         return searched_tweets
-         
-    def get_author_info(self, user, sf):
-        sf_user=sf.get('tweet_user')
-        
-        sf_user.set_attr_values(
-                        tag_name=str(user.screen_name),
-                        user_name= str(self.encode(user.name)),
-                        location=str(user.location),
-                        followers=int(user.followers_count),
-                        user_lang=str(user.lang),
-                        statuses_count=int(user.statuses_count),
-                        is_verified=bool(user.verified)        
-        )
-        
-        if sf_user.should_scrape():
-                    yield ComponentLoader('tweet_user', {
-                        'user_id' : user.id,
-                        'tag_name' : user.screen_name,
-                        'username' :  self.encode(user.name),
-                        'location' :  self.encode(user.location),
-                        'user_lang' : user.lang,
-                        'followers' : user.followers_count,
-                        'statuses_count' : user.statuses_count,
-                        'is_verified' : user.verified,
-                    })
-        
+
     def fetch_fav(self):
         try:
             f=self.driver.find_element_by_xpath("//a[@class='request-favorited-popup']").get_attribute("data-activity-popup-title")
@@ -171,10 +163,10 @@ class Tweetspider(Spider):
         except:
             f=0
         return f
-    
+
     def fetch_replies(self, author_name, tweet_id, sf):
         sf_replies=sf.get('replies')
-        self.driver.get("https://twitter.com/{}/status/{}".format(author_name, tweet_id))        
+        self.driver.get("https://twitter.com/{}/status/{}".format(author_name, tweet_id))
         time.sleep(2)
 
         try:
@@ -182,7 +174,7 @@ class Tweetspider(Spider):
 
             if len(replies_div) == 0: #No replies/comments
                 return 0
-                
+
             #check if all replies are loaded
             current_page_length = 0
             while True:
@@ -196,18 +188,36 @@ class Tweetspider(Spider):
             replies_div =self.driver.find_elements_by_xpath("//div[@data-component-context='replies']")
         except:
             return 0
-        if sf.ret('skip_comments'): return len(replies_div) #returns the amount of replies for each tweet
 
-        #TODO
-        """
+        if sf.ret('skip_replies'): return len(replies_div) #returns the amount of replies for each tweet
         c_list=[]
-        #set component here
+        replies_div.pop(0)
 
         for x in replies_div:
 
-            #contents = comments.find_elements_by_xpath("//p[@class='TweetTextSize  js-tweet-text tweet-text']")
-            
-            c_list.append(x.text)
+            contents = x.find_element_by_xpath(".//div[@class='js-tweet-text-container']")
+            author = x.find_element_by_class_name("stream-item-header").text
+            username=author.split(' ')[0]
+            tag_name=author.split(' ')[1]
+            date_created=x.find_element_by_xpath(".//a[@class='tweet-timestamp js-permalink js-nav js-tooltip']").get_attribute('title')
+            replies_response=x.find_element_by_xpath(".//div[@class='ProfileTweet-actionList js-actions']").text.split('\n')
+            print(replies_response)
+            if len(contents.text) == 0:
+                contents.find_element_by_xpath("//div[@class='AdaptiveMediaOuterContainer']")
+                c_list.append("user replied with a gif/img file")
+                continue
 
+            c_list.append(contents.text)
+
+            """#set component here
+            sf_replies.set_attr_values(
+
+            )
+
+            if sf_replies.should_scrape():
+                        yield ComponentLoader('replies', {
+
+                        })
+            """
+        #c_list.pop(0)
         return len(c_list)
-        """
