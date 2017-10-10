@@ -13,7 +13,7 @@ import json
 import jsonlines
 import re
 import enum
-import parser
+import textwrap
 from sfl import Interpreter
 from abc import ABCMeta, abstractmethod
 
@@ -323,29 +323,53 @@ class ScrapeFilter:
         its attributes, as well as the variables created in this 
         scrape filter.
         """
+        INDENT = '    '
+        UNDERLINE = '\033[4m'
+        BOLD = '\033[1m'
+        END = '\033[0m'
+        gap = 30
+        wrapper = textwrap.TextWrapper()
+        wrapper.initial_indent = INDENT
+        wrapper.subsequent_indent = INDENT
+        wrapper.width = 70
+
         lines = ''
-        lines += 'COMPONENTS:\n\n'
+        lines += UNDERLINE + 'COMPONENTS' + END + '\n\n'
         for k in self.comp:
             name = k
             info = self.get(k).info
-            component = ' %s: %s\n' % (name, info)
-            lines += component
+            component = INDENT + name
+            wrapper.initial_indent = ' ' * (gap - len(component))
+            wrapper.subsequent_indent = ' ' * (gap)
+            info = wrapper.fill(info)
+            component = BOLD + component + END
+            lines += component + info + '\n\n'
             for j in self.comp[k].attr:
                 if len(j) != 1:
                     name = j
                     info = self.get(k).get(j).info
                     if info == '':
                         info = '(No info available)'
-                    attribute =  '     %s: %s\n' % (name, info)
-                    lines += attribute
+                    attribute = INDENT * 2 + name
+                    wrapper.initial_indent = INDENT * 3
+                    wrapper.subsequent_indent = INDENT * 3
+                    info = wrapper.fill(info)
+                    attribute = INDENT * 2 + name
+                    lines += attribute + '\n\n'
+                    lines += info + '\n\n'
             lines += '\n'
 
-        lines += 'ARGUMENT VARIABLES:\n\n'
+        lines += UNDERLINE + 'ARGUMENT VARIABLES' + END + '\n\n'
+        initial_wrapper_width = wrapper.width
         for k in self.var:
-            name = k
+            name = '@' + k
             info = self.var[k].info
-            variable = ' %s: %s\n' % (name, info)
-            lines += variable
+            variable = INDENT + name
+            wrapper.initial_indent = INDENT * 2
+            wrapper.subsequent_indent = INDENT * 2
+            info = wrapper.fill(info)
+            lines += variable + '\n\n'
+            lines += info + '\n\n'
         return lines
 
 class Utils:
