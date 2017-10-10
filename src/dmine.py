@@ -339,8 +339,8 @@ class ScrapeFilter:
             name = k
             info = self.get(k).info
             component = INDENT + name
-            wrapper.initial_indent = ' ' * (gap - len(component))
-            wrapper.subsequent_indent = ' ' * (gap)
+            wrapper.initial_indent = INDENT
+            wrapper.subsequent_indent = INDENT
             info = wrapper.fill(info)
             component = BOLD + component + END
             lines += component + info + '\n\n'
@@ -355,7 +355,7 @@ class ScrapeFilter:
                     wrapper.subsequent_indent = INDENT * 3
                     info = wrapper.fill(info)
                     attribute = INDENT * 2 + name
-                    lines += attribute + '\n\n'
+                    lines += attribute + '\n'
                     lines += info + '\n\n'
             lines += '\n'
 
@@ -364,11 +364,17 @@ class ScrapeFilter:
         for k in self.var:
             name = '@' + k
             info = self.var[k].info
-            variable = INDENT + name
+            type = self.var[k].type.__name__
+            default = self.var[k].default_value
+            if isinstance(default, str):
+                default = '\'' + default + '\''
+            default = str(default)
+            variable = INDENT + name + ' (type: ' + type + ', default: '\
+                       + default +')'
             wrapper.initial_indent = INDENT * 2
             wrapper.subsequent_indent = INDENT * 2
             info = wrapper.fill(info)
-            lines += variable + '\n\n'
+            lines += variable + '\n'
             lines += info + '\n\n'
         return lines
 
