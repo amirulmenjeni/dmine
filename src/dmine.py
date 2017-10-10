@@ -502,13 +502,13 @@ class ComponentLoader:
 
     def __init__(self, name, data):
         self.name = name
-        self.data = data
+        self.set_data(data)
         ComponentLoader.names.append(name)
 
     def set_data(self, data):
         if not isinstance(data, dict):
-            logging.error('Data is expected to be of type \'dict\' but '
-                          '\'%s\' received.' 
-                          % (dict.__name__, int.__name__))
+            logging.error('Data is expected to be of type \'%s\' but '
+                          'data type of \'%s\' was received.' 
+                          % (dict.__name__, type(data).__name__))
             raise
         self.data = data
