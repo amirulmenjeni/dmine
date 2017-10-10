@@ -218,5 +218,4 @@ class TweetSpider(Spider):
 
                         })
             """
-        #c_list.pop(0)
         return len(c_list)
