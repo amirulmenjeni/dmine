@@ -22,6 +22,7 @@ class RedditSpider(Spider):
         # Create components.
         sf.add_com('post', info='A user post or submission')
         sf.add_com('comment', info='A user comment with respect to a post.')
+        sf.add_com('redditor', info='A redditor')
 
         # Add post attributes.
         sf_post = sf.get('post')
@@ -38,6 +39,11 @@ class RedditSpider(Spider):
         sf_comment.add('body', info='The comment text body.')
         sf_comment.add('author', info='The redditor who posted this comment.')
 
+        # Add redditor attributes.
+        sf_redditor = sf.get('redditor')
+        sf_redditor.add('username', info='The redditor\'s username.')
+        sf_redditor.add('trophies')
+
         # Create variables.
         sf.add_var('subreddits', 
                    default='all', type=RedditSpider.__type_list,
@@ -46,6 +52,11 @@ class RedditSpider(Spider):
                     info='Get submissions that only presents in this list.')
         sf.add_var('skip_comments', default=False, type=bool,
                    info='Skip comments for each scanned post if set to True.')
+        sf.add_var('redditor', default=None, type=RedditSpider.__type_list,
+                   info='A list of redditor usernames separated by comma. '\
+                        'If there\'s at least one redditor set in this list, '\
+                        'the spider will scan the redditor(s) instead of '\
+                        'subreddit.')
 
     def start(self, sf):
         """
