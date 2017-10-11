@@ -5,7 +5,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 from dmine import Spider, ComponentLoader
 
-#   Simple Twitter spider using Tweepy and Selenium
+#   A simple Twitter spider using Tweepy and Selenium
 #   You will need to generate your own API keys before accessing the Twitter api
 #   Guide on how this is done: https://auth0.com/docs/connections/social/twitter
 
@@ -102,7 +102,7 @@ class TweetSpider(Spider):
                                                  'Date created' : x.created_at.strftime("%T %B %d, %Y"),
                                                  'retweet' : x.retweet_count,
                                                  'replies' : replies_count,
-                                                 'likes' : fav_count
+                                                 'fav count' : fav_count
                 })
 
                 #yield replies if skip_replies set to False
@@ -210,18 +210,21 @@ class TweetSpider(Spider):
 
             reply_count= replies_response[0].text.split('\n')[0]
             if not reply_count.isdigit() : reply_count = 0
+
             retweet_count=replies_response[1].text.split('\n')
-            if len(retweet_count) == 2:
-                retweet_count = replies_response[1].text.split('\n')[1]
+            if len(retweet_count) > 1:
+                retweet_count = int(replies_response[1].text.split('\n')[1])
             else:
-                retweet=0
+                retweet_count=0
+
             likes_count=replies_response[2].text.split('\n')
             if len(likes_count) == 2:
                 likes_count = likes_count[1]
             else:
                 likes_count=0
 
-            if len(contents.text) == 0: #checks if img/gif div is present
+            #checks if img/gif div is present
+            if len(contents.text) == 0:
                 contents.find_element_by_xpath("//div[@class='AdaptiveMediaOuterContainer']")
                 c_list.append("user replied with a gif/img file")
             else:
@@ -229,7 +232,7 @@ class TweetSpider(Spider):
 
             #set component here
             sf_replies.set_attr_values(
-                    retweets= retweet,
+                    retweets= retweet_count,
                     likes=likes_count,
                     body = contents.text,
                     author= tag_name
@@ -237,9 +240,9 @@ class TweetSpider(Spider):
 
             if sf_replies.should_scrape():
                         yield ComponentLoader('replies', {
-                                'tweet_id': tweet_id,
-                                'retweets' : retweet,
-                                'likes' : likes_count,
+                                'reply id': tweet_id,
+                                'author' : tag_name,
                                 'body' : contents.text,
-                                'author' : tag_name
+                                'retweets' : retweet_count,
+                                'fav count' : likes_count
                         })
