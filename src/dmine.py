@@ -197,6 +197,49 @@ class Variable:
     def set_value(self, value):
         self.value = self.__to_type(value)
 
+class VarType:
+    """
+    A simple class to help simplify the process of parsing
+    string input received from an argument variable in a
+    scrape filter. 
+
+    Pass this class's method to the `type` parameter of 
+    `ScrapeFilter.add_var` method.
+    """
+
+    def comma_separated_list(val):
+        """
+        Assumes `val` is a string to present one or more 
+        values delimited by a comma character. The character
+        '\.' will be parsed as a single character ',' to escape
+        the delimiter.
+        """
+
+        if not isinstance(val, str):
+            VarType.__throw_invalid_type_error(val, str)
+
+        val += ' '
+        i = 0
+        j = 0
+        out = []
+        while i < (len(val) - 1):
+            print(i, val[i])
+            if val[i] == '\\' and val[i + 1] == ',':
+                val = val[0:i] + val[i+1:]
+                i += 1
+            elif val[i] == ',':
+                out.append(val[j:i])
+                j = i + 2
+            i += 1
+        out.append(val[j:i+1])
+        return out
+
+    def __throw_invalid_type_error(val, typ):
+        msg = 'Invalid type. Expected the type %s for the value %s.'\
+              % (typ.__name__, val)
+        logging.error(msg)
+        raise TypeError(msg)
+    
 class ScrapeFilter:
     """
     The scrap filter contains several components that can be found in the
