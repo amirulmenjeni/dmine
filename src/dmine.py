@@ -150,10 +150,13 @@ class Variable:
     name = ''
     info = ''
     type = str
+    choice = None
     value = None
     default_value = None
 
-    def __init__(self, scrape_filter, name, type=str, default=None, info=''):
+    def __init__(
+        self, scrape_filter, name, type=str, choice, default=None, info=''
+    ):
         """
         @param scrape_filter: The scrape filter object that is used
                               to define this variable from.
@@ -169,6 +172,7 @@ class Variable:
         self.scrape_filter = scrape_filter
         self.name = name
         self.type = type
+        self.choice = None
         self.value = None
         self.default_value = default
         self.info = info
@@ -185,17 +189,39 @@ class Variable:
             elif value in (0, 'False'):
                 return False
             else:
-                Variable.__throw_type_error(self.name, value, self.type)
-        return self.type(value) 
+                Variable.__throw_value_error(self.name, value, self.type)
 
-    def __throw_type_error(name, value, type):
+        try:
+            return self.type(value) 
+        except ValueError:
+            Variable.__throw_value_error(self.name, value, self.type)
+
+    def __is_in_choice(self, value):
+        """
+        @param value: The value passed to this variable.
+
+        Returns True if the given value is found in the 
+        this Variable's choice or if choice is not set (i.e. None).
+        Otherwise, returns False.
+        """
+        return (self.choice is None) or (value in self.choice)
+
+    def set_value(self, value):
+        if not self.__is_in_choice(value):
+            Variable.__throw_invalid_choice_error(self.name, value, self.type)
+        self.value = self.__to_type(value)
+
+    def __throw_value_error(name, value, type):
         msg = 'Invalid value for the type %s of variable \'%s\': %s'\
               % (type, name, value)
         logging.error(msg)
         raise TypeError(msg)
 
-    def set_value(self, value):
-        self.value = self.__to_type(value)
+    def __throw_invalid_choice_error(name, value, type):
+        msg = 'Invalid choice for the type %s of variable \'%s\': %s'\
+               % (type, name, value)
+        logging.error(msg)
+        raise ValueError(msg)
 
 class VarType:
     """
@@ -275,10 +301,15 @@ class ScrapeFilter:
             ScrapeFilter.__throw_comp_name_error(name)
         self.comp[name] = Component(self, name, info)
 
-    def add_var(self, name, type=str, default='', info=''):
+    def add_var(self, name, type=str, choice=None, default='', info=''):
         """
         @param name: The name of the variable.
-        @param defval: The default value assigned to the variable.
+        @param type: The type of the variable to be parsed as.
+        @param choice: The finite choice the the variable's value
+                       must be selected from. If the variable's value
+                       is not in the `choice` list, then it's an invalid
+                       value.
+        @param default: The default value assigned to the variable.
         @param info: The information pertaining the variable.
 
         Add a new variable to this scrape filter.
@@ -286,7 +317,7 @@ class ScrapeFilter:
         if name in self.var:
             msg = 'The variable name \'%s\' already exist.' % name
             ScrapeFilter.__throw_error(msg)
-        self.var[name] = Variable(self, name, type, default, info)
+        self.var[name] = Variable(self, name, type, choice, default, info)
 
     def is_name_valid(name):
         """
