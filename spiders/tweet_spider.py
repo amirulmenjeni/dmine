@@ -29,7 +29,7 @@ class TweetSpider(Spider):
         return driver
 
     def setup_filter(self, sf):
-        sf.add_com('tweet', info="Tweet post")
+        sf.add_com('tweet', info="A Tweet post")
         sf.add_com('tweet_user', info="Twitter user")
         sf.add_com('replies', info="replies made to respective tweet")
 
@@ -80,8 +80,8 @@ class TweetSpider(Spider):
             user_name = x.user.name
             tweet_id=x.id
 
-            #store each comments on a list, append to comments_dict with their associate tweet id as key
-            replies_count = self.fetch_replies(tag_name, tweet_id, sf)
+            replies= self.fetch_replies(tag_name, tweet_id, sf)
+            replies_count=replies.__next__()
             fav_count = self.fetch_fav()
 
             sf_tweet.set_attr_values(
@@ -105,6 +105,9 @@ class TweetSpider(Spider):
                                                  'likes' : fav_count
                 })
 
+                #yield replies if skip_replies set to False
+            while True:
+                yield next(replies)
 
             if sf.ret('skip_author_info'):
                 continue
@@ -173,7 +176,7 @@ class TweetSpider(Spider):
             replies_div =self.driver.find_elements_by_xpath("//div[@data-component-context='replies']")
 
             if len(replies_div) == 0: #No replies/comments
-                return 0
+                yield 0
 
             #check if all replies are loaded
             current_page_length = 0
@@ -193,29 +196,50 @@ class TweetSpider(Spider):
         c_list=[]
         replies_div.pop(0)
 
-        for x in replies_div:
+        yield len(replies_div)
 
+        #Scrape replies
+        for x in replies_div:
+            tweet_id = x.get_attribute("data-tweet-id")
             contents = x.find_element_by_xpath(".//div[@class='js-tweet-text-container']")
             author = x.find_element_by_class_name("stream-item-header").text
             username=author.split(' ')[0]
             tag_name=author.split(' ')[1]
             date_created=x.find_element_by_xpath(".//a[@class='tweet-timestamp js-permalink js-nav js-tooltip']").get_attribute('title')
-            replies_response=x.find_element_by_xpath(".//div[@class='ProfileTweet-actionList js-actions']").text.split('\n')
-            if len(contents.text) == 0:
+            replies_response=x.find_elements_by_xpath(".//div[@class='ProfileTweet-actionList js-actions']/div")
+
+            reply_count= replies_response[0].text.split('\n')[0]
+            if not reply_count.isdigit() : reply_count = 0
+            retweet_count=replies_response[1].text.split('\n')
+            if len(retweet_count) == 2:
+                retweet_count = replies_response[1].text.split('\n')[1]
+            else:
+                retweet=0
+            likes_count=replies_response[2].text.split('\n')
+            if len(likes_count) == 2:
+                likes_count = likes_count[1]
+            else:
+                likes_count=0
+
+            if len(contents.text) == 0: #checks if img/gif div is present
                 contents.find_element_by_xpath("//div[@class='AdaptiveMediaOuterContainer']")
                 c_list.append("user replied with a gif/img file")
-                continue
+            else:
+                c_list.append(contents)
 
-            c_list.append(contents.text)
-
-            """#set component here
+            #set component here
             sf_replies.set_attr_values(
-
+                    retweets= retweet,
+                    likes=likes_count,
+                    body = contents.text,
+                    author= tag_name
             )
 
             if sf_replies.should_scrape():
                         yield ComponentLoader('replies', {
-
+                                'tweet_id': tweet_id,
+                                'retweets' : retweet,
+                                'likes' : likes_count,
+                                'body' : contents.text,
+                                'author' : tag_name
                         })
-            """
-        return len(c_list)
