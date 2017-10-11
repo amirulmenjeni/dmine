@@ -155,7 +155,7 @@ class Variable:
     default_value = None
 
     def __init__(
-        self, scrape_filter, name, type=str, choice, default=None, info=''
+        self, scrape_filter, name, type=str, choice=None, default=None, info=''
     ):
         """
         @param scrape_filter: The scrape filter object that is used
@@ -438,12 +438,16 @@ class ScrapeFilter:
             name = '@' + k
             info = self.var[k].info
             type = self.var[k].type.__name__
+            choice = self.var[k].choice
             default = self.var[k].default_value
             if isinstance(default, str):
                 default = '\'' + default + '\''
             default = str(default)
             variable = INDENT + name + ' (type: ' + type + ', default: '\
-                       + default +')'
+                       + default
+            if choice is not None:
+                variable += ', choice: '
+            variable += ')'
             wrapper.initial_indent = INDENT * 2
             wrapper.subsequent_indent = INDENT * 2
             info = wrapper.fill(info)
