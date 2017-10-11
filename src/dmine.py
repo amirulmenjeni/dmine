@@ -223,7 +223,6 @@ class VarType:
         j = 0
         out = []
         while i < (len(val) - 1):
-            print(i, val[i])
             if val[i] == '\\' and val[i + 1] == ',':
                 val = val[0:i] + val[i+1:]
                 i += 1
