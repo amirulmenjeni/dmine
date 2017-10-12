@@ -26,6 +26,8 @@ class Lexer:
     #
     # Returns a generator of tokens taken from the input line.
     def lexer(line):
+        logging.info('Starting lexical analyzing  the input stream...')
+
         # A list of token (a tuple with an type of token and the value
         # of the token itself).
         tokens = []
@@ -129,6 +131,7 @@ class Lexer:
                 raise ValueError(msg)
 
         tokens.append(('EOF', ''))
+        logging.info('Finished lexical analyzing.')
         return tokens
 
     def __throw_token_error(token):
@@ -315,7 +318,9 @@ class Parser:
     """
     def parse(self):
         root = ParseTree('PROG', 'NODE')
+        logging.info('Parsing SFL tokens...')
         self.__prog(root)
+        logging.info('Finshed parsing.')
         return root
 
     """
@@ -458,7 +463,9 @@ class Evaluator:
                    from the parser.
         @param idns: The list of dict of identifiers.
         """
+        logging.info('Evaluating SFL parse tree...')
         out = Evaluator.parse_node(pt, idns, stors)
+        logging.info('Finsihed evaluating. Result: %s' % out)
         if out is None:
             out = {}
         return out
@@ -497,6 +504,15 @@ class Evaluator:
                 if n.parent.symbol != 'EXPR':
                     n.parent.children = []
                     n.parent.symbol, n.parent.value = n.symbol, int(n.value)
+
+            elif n.symbol == 'boolean':
+                if n.parent.symbol != 'EXPR':
+                    n.parent.children = []
+                    if n.value == 'True':
+                        n.value = True
+                    else:
+                        n.value = False
+                    n.parent.symbol, n.parent.value = n.symbol, n.value
 
             elif n.symbol == 'identifier':
                 if scope == '':
@@ -585,9 +601,11 @@ class Evaluator:
             n.children = []
             return
 
+        n.add_child('SENTRY', 'SENTRY')
+
         i = 0
         opts = ('<', '<=', '>', '>=', '==', '!=',\
-                'and', 'or', 'not', 'in', '(')
+                'and', 'or', 'not', 'in', '(', 'boolean')
         negate = False
         while i < len(n.children):
 
@@ -596,6 +614,8 @@ class Evaluator:
             res = True
 
             while n.children[i].symbol in opts:
+                if n.children[i].symbol == 'boolean':
+                    break
                 opt += n.children[i].symbol
                 i += 1
                 j += 1
@@ -641,9 +661,12 @@ class Evaluator:
                     'notin': lambda x, y: x not in y,
                     'and': lambda x, y: x and y,
                     'or': lambda x, y: x or y,
-                    '(': lambda x, y: y
+                    '(': lambda x, y: y,
+                    'boolean': lambda x, y: x
                 }
                 try:
+                    print('opt:', opt)
+                    print('L:', left, 'R:', right)
                     res = operate[opt](left, right)
                     if negate:
                         res = not res
