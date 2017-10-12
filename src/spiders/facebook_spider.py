@@ -1,6 +1,5 @@
 import facebook
 import time
-import sys
 import configparser
 from spiders import facebook_spider_post
 from dmine import Spider, ComponentLoader
