@@ -588,7 +588,7 @@ class Evaluator:
         i = 0
         opts = ('<', '<=', '>', '>=', '==', '!=',\
                 'and', 'or', 'not', 'in', '(')
-        is_negate = False
+        negate = False
         while i < len(n.children):
 
             opt = ''
@@ -609,7 +609,7 @@ class Evaluator:
                 # flag and continue to be used against the next operation's
                 # result.
                 if opt == 'not':
-                    is_negate = True
+                    negate = not negate
                     continue
 
                 left = None
@@ -645,9 +645,9 @@ class Evaluator:
                 }
                 try:
                     res = operate[opt](left, right)
-                    if is_negate:
+                    if negate:
                         res = not res
-                        is_negate = False
+                        negate = not negate
                 except TypeError as e:
                     Evaluator.__throw_eval_error(
                         str(e) + '. left operand is \'%s\', and '\
