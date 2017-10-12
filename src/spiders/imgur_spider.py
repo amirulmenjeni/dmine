@@ -12,15 +12,23 @@ class ImgurSpider(Spider):
         
         sf_post = sf.get('post')
         sf_post.add('title', info='The title of the post.')
+        sf_post.add('description', info='The description of the post.')
         sf_post.add('author', info='The user who submitted the post.')
-        sf_post.add('score', info='The score of the post.')
         sf_post.add('points', info='The points of the post.')
+        sf_post.add('score', info='The score of the post.')
+        sf_post.add('ups', info='The number upvotes the post get.')
+        sf_post.add('downs', info='The number of downvotes the post get.')
         sf_post.add('views', info='The view count of the post.')
+        sf_post.add('tags', info='The tags labelled on the post.')
+        sf_post.add('is_nsfw', info='States whether or not the post is NSFW.')
 
         sf_comment = sf.get('comment')
         sf_comment.add('body', info='The body of the comment.')
         sf_comment.add('author', info='The user who submitted the comment.')
+        sf_comment.add('points', info='The points of the comment.')
         sf_comment.add('score', info='The score of the comment.')
+        sf_comment.add('ups', info='The upvotes the comment get.')
+        sf_comment.add('downs', info='The downvotes the comment get.')
 
         sf.add_var(
             'sections', type=list, default=['hot', 'new'],
@@ -66,15 +74,10 @@ class ImgurSpider(Spider):
         client_secret = 'c9ed8ffe67e553f10f8d587f5d335ae68264fd92'
         self.imgur = ImgurClient(client_id, client_secret)
 
-        for post in self.post_generator(sf):
-            yield ComponentLoader('post', {
-                'id': post.id,
-                'title': post.title,
-                'description': post.description,
-                'link': post.link
-            })
+        for item in self.generator(sf):
+            yield item
 
-    def post_generator(self, sf):
+    def generator(self, sf):
         """
         An item list generator containing the items in a page.
         """
@@ -92,8 +95,58 @@ class ImgurSpider(Spider):
                     window='day'
                 )
                 p += 1
-                for post in page:
+                for post in self.generate_post(sf, page):
                     yield post
 
-    def scrape_posts(self, sf):
-        pass
+    def generate_post(self, sf, page):
+        for post in page:
+#            print(dir(post))
+#            return
+            sf.get('post').set_attr_values(
+                author=post.account_url,
+                title=post.title,
+                description=post.description,
+                points=int(post.points),
+                score=int(post.score),
+                ups=int(post.ups),
+                downs=int(post.downs),
+                is_nsfw=bool(post.nsfw)
+            )
+
+            if sf.get('post').should_scrape():
+                yield ComponentLoader('post', {
+                    'id': post.id,
+                    'author': post.account_url,
+                    'title': post.title,
+                    'description': post.description,
+                    'link': post.link,
+                    'topic': post.topic,
+                    'points': post.points,
+                    'score': post.score,
+                    'ups': post.ups,
+                    'downs': post.downs,
+                    'comment_count': post.comment_count,
+                    'tags': ','.join([tag['name'] for tag in post.tags]),
+                    'nsfw': post.nsfw
+                })
+                
+                continue
+        
+                for comment in self.generate_comment(sf, post.id):
+                    yield comment
+
+    def generate_comment(self, sf, post_id):
+        for comment in self.imgur.gallery_item_comments(post_id):
+            yield ComponentLoader('comment', {
+                'id': comment.id,
+                'parent_id': comment.parent_id,
+                'title': comment.comment,
+                'author': comment.author,
+                'datetime': comment.datetime,
+                'deleted': comment.deleted,
+                'points': comment.points,
+                'vote': comment.vote,
+                'downs': comment.downs,
+                'ups': comment.ups,
+            })
+
