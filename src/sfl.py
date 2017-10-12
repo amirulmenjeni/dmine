@@ -423,6 +423,9 @@ class Parser:
         elif self.__accept('identifier'):
             node.add_child(self.prev[0], self.prev[1])
 
+        elif self.__accept('boolean'):
+            node.add_child(self.prev[0], self.prev[1])
+
         elif self.__accept('('):
             node.add_child(self.prev[0], self.prev[1])
             self.__eval(node.add_child('EVAL', 'NODE'))
