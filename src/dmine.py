@@ -207,6 +207,9 @@ class Variable:
         return (self.choice is None) or (value in self.choice)
 
     def set_value(self, value):
+        if value is None:
+            self.value = None
+            return
         if not self.__is_in_choice(value):
             Variable.__throw_invalid_choice_error(self.name, value, self.type)
         self.value = self.__to_type(value)
