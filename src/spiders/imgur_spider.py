@@ -32,8 +32,8 @@ class ImgurSpider(Spider):
         )
         sf.add_var(
             'time', type=str,
-            choice=['today', 'this week', 'this month',\
-                    'this year', 'all time'],
+            choice=['day', 'week', 'month',\
+                    'year', 'all time'],
             default='today',
             info="The time frame of when the post was submitted. Note that "\
                  "this only applies to a 'hot' section with 'top' sorting. "
@@ -47,7 +47,7 @@ class ImgurSpider(Spider):
                  "with the @time attribute."
         )
         sf.add_var(
-            'tags', type=list, default=[],
+            'tags', type=list, default=None,
             info="If this list is not empty, then the spider will ONLY "\
                  "scan for posts with the given tags in this list."
         )
@@ -55,17 +55,26 @@ class ImgurSpider(Spider):
             'skip_comments', type=bool, default=False,
             info='Skip scanning over comments for every scanned post.'
         )
+        sf.add_var(
+            'page_limit', type=int, default=999999,
+            info="The limit on how many page will the spider scan before it "\
+                 "stops."
+        )
 
     def start(self, sf):
         client_id = '93814a7ab6dccf6'
         client_secret = 'c9ed8ffe67e553f10f8d587f5d335ae68264fd92'
         self.imgur = ImgurClient(client_id, client_secret)
 
-#        for page in self.page_generator(sf):
-#            for item in page:
-#                yield item
+        for post in self.post_generator(sf):
+            yield ComponentLoader('post', {
+                'id': post.id,
+                'title': post.title,
+                'description': post.description,
+                'link': post.link
+            })
 
-    def page_generator(self, sf):
+    def post_generator(self, sf):
         """
         An item list generator containing the items in a page.
         """
@@ -74,20 +83,17 @@ class ImgurSpider(Spider):
         sf_sort = sf.ret('sort')
         sf_tags = sf.ret('tags')
         for section in sf_sections:
-            page = 0
+            p = 0
             while True:
-                items = self.imgur.gallery(
+                page = self.imgur.gallery(
                     section=section,
-                    sort=sort,
-                    page=page,
+                    sort=sf_sort,
+                    page=p,
                     window='day'
                 )
-                page += 1
-                yield items
+                p += 1
+                for post in page:
+                    yield post
 
-    def scrape_gallery(self, sf, galleries):
+    def scrape_posts(self, sf):
         pass
-
-    def scrape_comments(self, sf, gallery):
-        pass
-
