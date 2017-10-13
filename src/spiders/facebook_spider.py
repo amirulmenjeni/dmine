@@ -1,11 +1,13 @@
 import facebook
 import time
+import sys
 import configparser
 from spiders import facebook_spider_post
 from dmine import Spider, ComponentLoader
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 
+#Deploy multithreading
 
 class FBspider(Spider):
     name = "facebook"
@@ -42,22 +44,39 @@ class FBspider(Spider):
 
     def setup_filter(self, sf):
         sf.add_com('event', info="An event posted on Facebook")
+        sf.add_com('group', info="a facebook group")
 
         sf_event = sf.get('event')
         sf_event.add('author', info='author of the event post')
         sf_event.add('event_name', info='name of the event')
         sf_event.add('schedule', info='schedule of the event')
-        sf_event.add('attending_count', info='author of the event post')
-        sf_event.add('declined_count', info='author of the event post')
+        sf_event.add('attending_count', info='')
+        sf_event.add('declined_count', info='')
 
-        sf.add_var('search_type', default="event", info="")
+        sf_group = sf.get('group')
+        sf_group.add('owner', info='owner of the facebook group')
+        sf_group.add('privacy_type', info='Privacy setting of this group')
+        sf_group.add('member_request_count', info='No. of members request to join the group')
+        sf_group.add('last_updated', info='Time last updated')
+        sf_group.add('desc', info='description of group')
+
+
+        sf.add_var('search_type', type=list, default=['event', 'group', 'place'], info= "Determine the search type i.e groups, events, people ")
         sf.add_var('keyword', default="", info='keyword query')
         sf.add_var('limit', default="5", info='limit of results')
 
 
     def start(self, sf):
-        for x in self.search_by_event(sf):
-            yield x
+        types_list=sf.ret('search_type')
+
+        if 'event' in types_list:
+            for x in self.search_by_event(sf):
+                yield x
+
+        if 'group' in types_list:
+            for x in self.search_by_group(sf):
+                yield x
+
 
     def unicode_decode(self, text):
         try:
@@ -85,7 +104,6 @@ class FBspider(Spider):
             no_reply_count=fields['noreply_count']
             location= e['place']
 
-
             sf_event.set_attr_values(
                     author= owner,
                     event_name=event_name,
@@ -112,18 +130,38 @@ class FBspider(Spider):
                 yield ComponentLoader('event', data_dict)
 
 
-    def search_by_group(self, keyword, limit):
+    def search_by_group(self, sf):
+        limit=sf.ret('limit')
+        keyword=sf.ret('keyword')
+        sf_group=sf.get('group')
         groups = self.graph.request("/search?q={}&type=group&limit={}".format(keyword,limit))
         data_dict = groups['data']
+
         for e in data_dict:
             fields=self.graph.get_object(id=e['id'],
-                             fields='updated_time, member_request_count, owner')
-            owner=fields['owner']['name'] if 'owner' in fields else "none"
-            fields['owner'] = owner
-            e.update(fields)
-            del e['id']
-            yield e
-            #print("[Group Name]: "+ self.unicode_decode(e['name'])+ "\n[Privacy]: " + self.unicode_decode(e['privacy']))
+                             fields='updated_time, member_request_count, owner, description')
+
+            owner=fields['owner']['name'] if 'owner' in fields else "None specified"
+            last_updated=fields['updated_time'] if 'updated_time' in fields else "None"
+
+            sf_group.set_attr_values(
+                    owner= owner,
+                    privacy_type=e['privacy'],
+                    member_request_count = fields['member_request_count'],
+                    last_updated= last_updated,
+                    desc= fields['description']
+            )
+
+            if sf_group.should_scrape():
+                yield ComponentLoader('group', {
+                                'Group id' : e['id'],
+                                'owner' : owner,
+                                'privacy type' : e['privacy'],
+                                'member requestcount' : fields['member_request_count'],
+                                'last updated' : last_updated,
+                                'description' : fields['description'].replace("\n", " ")
+                    })
+
     #wip
     def search_by_place(self, keyword, limit):
         places = self.graph.request("/search?q={}&type=place&limit={}".format(keyword,limit))
