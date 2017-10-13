@@ -7,8 +7,6 @@ from dmine import Spider, ComponentLoader
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 
-#Deploy multithreading
-
 class FBspider(Spider):
     name = "facebook"
 
@@ -44,10 +42,11 @@ class FBspider(Spider):
 
     def setup_filter(self, sf):
         sf.add_com('event', info="An event posted on Facebook")
-        sf.add_com('group', info="a facebook group")
+        sf.add_com('group', info="A facebook group")
         sf.add_com('place', info="")
-        sf.add_com('people', info="")
-        
+        sf.add_com('people', info="Search user/people")
+        sf.add_com('page', info="Facebook page")
+
         sf_event = sf.get('event')
         sf_event.add('author', info='author of the event post')
         sf_event.add('event_name', info='name of the event')
@@ -71,9 +70,22 @@ class FBspider(Spider):
         sf_place.add('country', info='')
 
         sf_people=sf.get('people')
-        sf_people.add('name', info="Name of a user")
+        sf_people.add('name', info="Name of a user")  #is_verified, checkins, feeds, likes, about
+        sf_people.add('is_verified', info="is a verified account?")
+        sf_people.add('checkins', info="Places user has checked in")
+        sf_people.add('likes_count', info="No. of pages user has liked")
+        sf_people.add('about', info="bio of user")
+        sf_people.add('feeds', info="feeds")
 
-        sf.add_var('search_type', type=list, default=['people'], info= "Determine the search type i.e groups, events, people ")
+        sf_page=sf.get('page')
+        sf_page.add('name', info="Name the facebook page")
+        sf_page.add('category', info="Category of this facebook page")
+        sf_page.add('ratings', info="Ratings")
+        sf_page.add('checkin_count', info="People who have visited")
+
+
+
+        sf.add_var('search_type', type=list, default=['event', 'group', 'place', 'people', 'page'], info= "Determine the search type i.e groups, events, people ")
         sf.add_var('keyword', default="", info='keyword query')
         sf.add_var('limit', default="5", info='limit of results')
 
@@ -97,6 +109,9 @@ class FBspider(Spider):
             for x in self.search_by_people(sf):
                 yield x
 
+        if 'page' in types_list:
+            for x in self.search_by_page(sf):
+                yield x
 
     def unicode_decode(self, text):
         try:
@@ -218,7 +233,6 @@ class FBspider(Spider):
 
                     })
 
-    #WIP
     def search_by_people(self, sf):
         limit=sf.ret('limit')
         keyword=sf.ret('keyword')
@@ -226,34 +240,58 @@ class FBspider(Spider):
         peoples = self.graph.request("/search?q={}&type=place&limit={}".format(keyword,limit))
         data_dict = peoples['data']
         for e in data_dict:
-            try:#is_verified, checkins, feeds, likes (pages like), about
-                fields=self.graph.get_object(id=e['id'], fields='feed')['feed']['data']
-            except:
-                fields= "none"
-
-            print(likes)
+            fields=self.graph.get_object(id=e['id'], fields='is_verified, checkins, feed, likes, about')
+            is_verified=fields['is_verified']
+            likes_count=fields['likes']
+            about=fields['about'] if 'about' in fields.keys() else "none"
+            feeds=fields['feed']['data'] if 'feed' in fields.keys() else "none"
 
             name=self.unicode_decode(e['name'])
 
             sf_people.set_attr_values(
-                    name= name
+                    name=name,
+                    is_verified=is_verified,
+                    likes_count=likes_count,
+                    about=about,
+                    feeds=feeds #subject to omit
             )
 
             if sf_people.should_scrape():
                 yield ComponentLoader('people', {
                                 'user id' : e['id'],
-                                'name' : name
-                    })
+                                'name' : name,
+                                'is_verified' : is_verified,
+                                'Likes ' : likes_count,
+                                'bio' : about,
+                                'feeds' : feeds
+                })
 
-    def search_by_page(self, keyword, limit):
+    def search_by_page(self,sf):
+        limit=sf.ret('limit')
+        keyword=sf.ret('keyword')
+        sf_people=sf.get('page')
         groups = self.graph.request("/search?q={}&type=page&limit={}".format(keyword,limit))
         data_dict = groups['data']
 
         for e in data_dict:
             fields=self.graph.get_object(id=e['id'], fields='category, checkins ,current_location, rating_count')
-            e.update(fields)
-            del e['id'] #Remove Page ID from dict
-            yield e
 
-    def search_by_post(self, keyword, limit):
+            sf_people.set_attr_values(
+                    name=e['name'],
+                    category=fields['category'],
+                    ratings=fields['rating_count'],
+                    checkin_count=fields['checkins']
+            )
+
+            if sf_people.should_scrape():
+                yield ComponentLoader('people', {
+                                'place id' : e['id'],
+                                'name' : e['name'],
+                                'category': fields['category'],
+                                'ratings' : fields['rating_count'],
+                                'checkin_count' : fields['checkins']
+                })
+
+
+    def search_by_post(self, keyword, limit): #subject to omit
         fb_post = fbpost.FBspider_post(self.driver, keyword, limit)
