@@ -77,7 +77,7 @@ class Component:
         self.scrape_filter.run_interpreter()
         return self.flag
 
-    def set_attr_values(self, **attributes, lenient=False):
+    def set_attr_values(self, lenient=False, **attributes):
         """
         @param **attributes: A dictionary of attributes where the attribute's
                              name is the key and its attribute value is 
