@@ -20,7 +20,7 @@ class FBspider(Spider):
         self.driver = self.init_driver()
         self.login(self.driver, user, passw)
         access_token=self.generate_token(self.driver)
-        self.graph=facebook.GraphAPI(access_token)
+        self.graph=facebook.GraphAPI(access_token, 2.10)
 
     def init_driver(self):
         driver = webdriver.PhantomJS(executable_path=r'C:\PhantomJs\bin\phantomjs\bin\phantomjs.exe')
@@ -45,6 +45,9 @@ class FBspider(Spider):
     def setup_filter(self, sf):
         sf.add_com('event', info="An event posted on Facebook")
         sf.add_com('group', info="a facebook group")
+        sf.add_com('place', info="")
+        sf.add_com('people', info="")
+
 
         sf_event = sf.get('event')
         sf_event.add('author', info='author of the event post')
@@ -60,8 +63,18 @@ class FBspider(Spider):
         sf_group.add('last_updated', info='Time last updated')
         sf_group.add('desc', info='description of group')
 
+        sf_place = sf.get('place')
+        sf_place.add('name', info='')
+        sf_place.add('category_list', info='')
+        sf_place.add('street', info='')
+        sf_place.add('state', info='')
+        sf_place.add('city_name', info='')
+        sf_place.add('country', info='')
 
-        sf.add_var('search_type', type=list, default=['event', 'group', 'place'], info= "Determine the search type i.e groups, events, people ")
+        sf_people=sf.get('people')
+        sf_people.add('name', info="Name of a user")
+
+        sf.add_var('search_type', type=list, default=['people'], info= "Determine the search type i.e groups, events, people ")
         sf.add_var('keyword', default="", info='keyword query')
         sf.add_var('limit', default="5", info='limit of results')
 
@@ -75,6 +88,14 @@ class FBspider(Spider):
 
         if 'group' in types_list:
             for x in self.search_by_group(sf):
+                yield x
+
+        if 'place' in types_list:
+            for x in self.search_by_place(sf):
+                yield x
+
+        if 'people' in types_list:
+            for x in self.search_by_people(sf):
                 yield x
 
 
@@ -159,29 +180,71 @@ class FBspider(Spider):
                                 'privacy type' : e['privacy'],
                                 'member requestcount' : fields['member_request_count'],
                                 'last updated' : last_updated,
-                                'description' : fields['description'].replace("\n", " ")
+                                'description' :self.unicode_decode(fields['description'].replace("\n", " "))
                     })
 
-    #wip
-    def search_by_place(self, keyword, limit):
+    def search_by_place(self, sf):
+        limit=sf.ret('limit')
+        keyword=sf.ret('keyword')
+        sf_place=sf.get('place')
         places = self.graph.request("/search?q={}&type=place&limit={}".format(keyword,limit))
         data_dict = places['data']
         for e in data_dict:
+            fields=self.graph.get_object(id=e['id'])
             city_name=e['location'].get('city')
             country=e['location'].get('country')
             state=e['location'].get('state')
             street=e['location'].get('street')
             category_list= [x['name'] for x in e['category_list']]
             name=e['name']
-            print("Category: {}".format(category_list))
-            print("Name: {} \nCity name: {}\nCountry: {}\nstate: {}\nstreet: {}\n".format(name, city_name,country, state, street))
 
+            sf_place.set_attr_values(
+                    name= name,
+                    category_list=category_list,
+                    street=street,
+                    state=state,
+                    city_name=city_name,
+                    country=country
+            )
 
-    def search_by_people(self, keyword, limit):
-        groups = self.graph.request("/search?q={}&type=place&limit={}".format(keyword,limit))
-        data_dict = groups['data']
+            if sf_place.should_scrape():
+                yield ComponentLoader('place', {
+                                'Place id' : e['id'],
+                                'name' :  name,
+                                'category_list' : category_list,
+                                'street' : street,
+                                'state' : state,
+                                'city_name' : city_name,
+                                'country'  : country
+
+                    })
+
+    #WIP
+    def search_by_people(self, sf):
+        limit=sf.ret('limit')
+        keyword=sf.ret('keyword')
+        sf_people=sf.get('people')
+        peoples = self.graph.request("/search?q={}&type=place&limit={}".format(keyword,limit))
+        data_dict = peoples['data']
         for e in data_dict:
-            print(self.unicode_decode(e['name']))
+            try:#is_verified, checkins, feeds, likes (pages like), about
+                fields=self.graph.get_object(id=e['id'], fields='feed')['feed']['data']
+            except:
+                fields= "none"
+
+            print(likes)
+
+            name=self.unicode_decode(e['name'])
+
+            sf_people.set_attr_values(
+                    name= name
+            )
+
+            if sf_people.should_scrape():
+                yield ComponentLoader('people', {
+                                'user id' : e['id'],
+                                'name' : name
+                    })
 
     def search_by_page(self, keyword, limit):
         groups = self.graph.request("/search?q={}&type=page&limit={}".format(keyword,limit))
