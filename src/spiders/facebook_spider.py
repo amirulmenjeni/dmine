@@ -47,8 +47,7 @@ class FBspider(Spider):
         sf.add_com('group', info="a facebook group")
         sf.add_com('place', info="")
         sf.add_com('people', info="")
-
-
+        
         sf_event = sf.get('event')
         sf_event.add('author', info='author of the event post')
         sf_event.add('event_name', info='name of the event')
