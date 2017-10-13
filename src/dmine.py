@@ -89,7 +89,7 @@ class Component:
         if not lenient:
             for k in attributes:
                 if self.get(k).value is None:
-                    self.__throw_value_unassigned_error(name)
+                    self.__throw_value_unassigned_error(k)
                     break
 
 
@@ -107,6 +107,8 @@ class Component:
         msg = 'When setting the attribute values of the component '\
               '\'%s\', the attribute \'%s\' is not assigned.'\
               % (self.name, name)
+        logging.error(msg)
+        raise ValueError(msg)
 
     def __throw_attr_name_error(self, name):
         msg = 'An attribute in the component \'%s\' with '\

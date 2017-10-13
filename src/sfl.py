@@ -363,21 +363,6 @@ class Parser:
                 self.__expect('=')
                 node.add_child(self.prev[0], self.prev[1])
                 self.__factor(node.add_child('FACTOR', 'NODE'))
-#                if self.__accept('string')\
-#                or self.__accept('number')\
-#                or self.__accept('boolean'):
-#                    node.add_child(self.prev[0], self.prev[1])
-#                elif self.__accept('['):
-#                    node.add_child(self.prev[0], self.prev[1])
-#                    node.add_child(self.curr[0], self.curr[1])
-#                    while self.__accept(','):
-#                        node.add_child(self.prev[0], self.prev[1])
-#                        node.add_child(self.curr[0], self.curr[1])
-#                        self.__nextsym()
-#                    self.__expect(']')
-#                    node.add_child(self.prev[0], self.prev[1])
-#                else:
-#                    self.__throw_assignment_error(storable.value)                    
 
     def __eval(self, node):
         """
