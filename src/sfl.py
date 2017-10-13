@@ -688,9 +688,7 @@ class Evaluator:
                     'boolean': lambda x, y: x
                 }
                 try:
-                    print('L:', left, 'R:', right)
                     res = operate[opt](left, right)
-                    print('res:', res)
                     if negate:
                         res = not res
                         negate = not negate
