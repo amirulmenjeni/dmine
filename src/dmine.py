@@ -77,7 +77,7 @@ class Component:
         self.scrape_filter.run_interpreter()
         return self.flag
 
-    def set_attr_values(self, **attributes):
+    def set_attr_values(self, **attributes, lenient=False):
         """
         @param **attributes: A dictionary of attributes where the attribute's
                              name is the key and its attribute value is 
@@ -85,6 +85,13 @@ class Component:
         """
         for k in attributes:
             self.get(k).value = attributes[k]
+
+        if not lenient:
+            for k in attributes:
+                if self.get(k).value is None:
+                    self.__throw_value_unassigned_error(name)
+                    break
+
 
     def all_set(self):
         """
@@ -95,6 +102,11 @@ class Component:
             if self.attr[k].value is None:
                 return False
         return True
+
+    def __throw_value_unassigned_error(self, name):
+        msg = 'When setting the attribute values of the component '\
+              '\'%s\', the attribute \'%s\' is not assigned.'\
+              % (self.name, name)
 
     def __throw_attr_name_error(self, name):
         msg = 'An attribute in the component \'%s\' with '\
