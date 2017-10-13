@@ -85,10 +85,11 @@ class Component:
         """
         for k in attributes:
             self.get(k).value = attributes[k]
+            self.get(k).is_assigned = True
 
         if not lenient:
             for k in attributes:
-                if self.get(k).value is None:
+                if not self.get(k).is_assigned:
                     self.__throw_value_unassigned_error(k)
                     break
 
@@ -135,6 +136,7 @@ class Attribute:
     name = ''
     info = ''
     value = None
+    is_assigned = False
 
     def __init__(self, component, name, info=''):
         """
@@ -150,6 +152,7 @@ class Attribute:
         self.name = name
         self.info = info
         self.value = None
+        self.is_assigned = False
 
 class Variable:
     """
