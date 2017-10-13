@@ -34,7 +34,7 @@ class Lexer:
     
         i = 0
         c = ''
-        opt_chars = '[(){}<>!=andornotin]'
+        opt_chars = '[(){}<>!=andornotin\[\]\,]'
         while i < len(line):
             errored_token = line[i]
             # Ignore whitespace.
@@ -69,7 +69,8 @@ class Lexer:
                     continue
 
                 # Assume it's an operator.
-                opts = '^(\(|\)|\{|\}|<|<=|>|>=|==|!=|=|and|or|not|in)$'
+                opts = '^(\(|\)|\{|\}|<|<=|>|>=|=='\
+                       '|!=|=|and|or|not|in|\[|\]|,)$'
                 operator, i = Lexer.__scan(
                     i, line, opt_chars, opts
                 )
@@ -84,7 +85,6 @@ class Lexer:
                 if identifier:
                     tokens.append(('identifier', identifier))
                     continue
-
 
             # TYPE: string
             #
@@ -123,7 +123,7 @@ class Lexer:
                     tokens.append(('storable', storable))
                 else:
                     Lexer.__throw_token_error(storable)
-            
+
             # Weird token.
             else:
                 Lexer.__throw_token_error(errored_token)
@@ -135,7 +135,7 @@ class Lexer:
         return tokens
 
     def __throw_token_error(token):
-        msg = 'Invalid token: \'%s\'' % token
+        msg = 'Invalid token: %s' % token
         logging.error(msg)
         raise ValueError(msg)
 
@@ -161,7 +161,7 @@ class Lexer:
 
         # Special characters: delimiters that indicate
         # a token's boundary.
-        if line[i] in ('{', '}', '(', ')'):
+        if line[i] in ('{', '}', '(', ')', '[', ']', ','):
             if re.match(token_pattern, line[i]):
                 return line[i], j + 1
             else:
@@ -169,7 +169,7 @@ class Lexer:
 
         # Scan and append chars in the line from j-th index
         # until an unwanted char is reached.
-        delimiter = '(\s|{|}|\(|\))'
+        delimiter = '(\s|{|}|\(|\)|\[|\]|,)'
         while j < len(line) and not re.match(delimiter, line[j]):
             s += line[j]
             j += 1
@@ -221,25 +221,25 @@ class Parser:
     # Tuple of valid comparators.
     comparators = ('<', '<=', '>', '>=', '==', '!=', 'not', 'in')
 
-    """
-    @param tokens: A list of tokens retrieved from a lexer class.
-
-    Initialize a new instance of the Parser class.
-    """
     def __init__(self, tokens):
+        """
+        @param tokens: A list of tokens retrieved from a lexer class.
+
+        Initialize a new instance of the Parser class.
+        """
         self.tnum = 0
         self.tokens = tokens
         self.curr = self.tokens[0]
         self.prev = (None, None)
     
-    """
-    Updates `tnum`, `curr` and `prev`. 
-
-    If failed to retrieve the next token (due to index out of range),
-    this method will return False. Otherwise, when successful, return
-    True.
-    """
     def __nextsym(self):
+        """
+        Updates `tnum`, `curr` and `prev`. 
+
+        If failed to retrieve the next token (due to index out of range),
+        this method will return False. Otherwise, when successful, return
+        True.
+        """
         self.tnum += 1
         if self.tnum >= len(self.tokens):
             logging.warning('index out of range, tnum: %s' % self.tnum)
@@ -248,15 +248,15 @@ class Parser:
         self.prev = self.tokens[self.tnum - 1]
         return True
 
-    """
-    Similar to `__nextsym(self)`, this method updates `tnum`, `curr`, and
-    `prev`, but instead of advancing the token, this token do the reverse.
-
-    If failed to retrieve the previous token (due to index out range),
-    this method will return False. Otherwise, when successful, return 
-    True.
-    """
     def __prevsym(self):
+        """
+        Similar to `__nextsym(self)`, this method updates `tnum`, `curr`, and
+        `prev`, but instead of advancing the token, this token do the reverse.
+
+        If failed to retrieve the previous token (due to index out range),
+        this method will return False. Otherwise, when successful, return 
+        True.
+        """
         self.tnum -= 1
         if self.tnum < 0:
             logging.warning('Index out of range, tnum: %s' % self.tnum)
@@ -264,25 +264,25 @@ class Parser:
         self.curr = self.tokens[self.tnum]
         self.prev = self.tokens[self.tnum - 1]
 
-    """
-    Simply reset the state of `tnum`, `curr` and `prev`. Used
-    for debugging purpose only.
-    """
     def __resetsym(self):
+        """
+        Simply reset the state of `tnum`, `curr` and `prev`. Used
+        for debugging purpose only.
+        """
         self.tnum = 0
         self.prev = None, None
         self.curr = self.tokens[self.tnum]
 
-    """
-    @param symbol: The symbol/type of the token to be compared
-                   with the symbol of the current token, `curr`,
-                   whether they match or not.
-    
-    If the symbol match with the symbol of the current token,
-    advance to the next token and return True. Otherwise, return
-    False.
-    """
     def __accept(self, symbol):
+        """
+        @param symbol: The symbol/type of the token to be compared
+                       with the symbol of the current token, `curr`,
+                       whether they match or not.
+        
+        If the symbol match with the symbol of the current token,
+        advance to the next token and return True. Otherwise, return
+        False.
+        """
         if self.curr[0] == symbol:
             self.__nextsym()
             return True
@@ -296,14 +296,14 @@ class Parser:
             return True
         return False
 
-    """
-    @param symbol: The symbol of the next token that is expected 
-                   to be found after the current token.
-             
-    Returns True if the expected symbol is found. Otherwise, throw an
-    error.
-    """
     def __expect(self, symbol):
+        """
+        @param symbol: The symbol of the next token that is expected 
+                       to be found after the current token.
+                 
+        Returns True if the expected symbol is found. Otherwise, throw an
+        error.
+        """
         if self.__accept(symbol):
             return True
         self.__throw_parse_error(
@@ -311,39 +311,39 @@ class Parser:
             % (symbol, self.curr[0])
         )
 
-    """
-    The ParseTree object instance is created here, and passed down
-    to the `__prog` method.
-    This method returns the parse tree.
-    """
     def parse(self):
+        """
+        The ParseTree object instance is created here, and passed down
+        to the `__prog` method.
+        This method returns the parse tree.
+        """
         root = ParseTree('PROG', 'NODE')
         logging.info('Parsing SFL tokens...')
         self.__prog(root)
         logging.info('Finshed parsing.')
         return root
 
-    """
-    The program node method (start of a BNF set of productions or the 
-    root of a parse tree). It add a child note EXPR to itself
-    and pass it to the `__expr` node method.
-    """
     def __prog(self, root):
+        """
+        The program node method (start of a BNF set of productions or the 
+        root of a parse tree). It add a child note EXPR to itself
+        and pass it to the `__expr` node method.
+        """
         self.__expr(root.add_child('EXPR', 'NODE'))
 
-    """
-    The expression node method. Note that the EBNF expression
-    for the expression is:
-
-        expr ::= 
-            { 
-                ( 
-                    { identifier "{" eval "}"  }  | 
-                    { storable = ( "string" | "integer" ) }
-                ) 
-            }
-    """
     def __expr(self, node):
+        """
+        The expression node method. Note that the EBNF expression
+        for the expression is:
+
+            expr ::= 
+                { 
+                    ( 
+                        { identifier "{" eval "}"  }  | 
+                        { storable = ( "string" | "integer" ) }
+                    ) 
+                }
+        """
 
         while self.__accept('identifier') or self.__accept('storable'):
             if self.prev[0] == 'identifier':
@@ -369,27 +369,27 @@ class Parser:
                 else:
                     self.__throw_assignment_error(storable.value)                    
 
-    """
-    The eval node method. Note that the EBNF expression for the expression
-    is:
-        eval ::= term ( "and" | "or" ) term { ( "and" | "or" ) term }
-    """
     def __eval(self, node):
+        """
+        The eval node method. Note that the EBNF expression for the expression
+        is:
+            eval ::= term ( "and" | "or" ) term { ( "and" | "or" ) term }
+        """
         self.__term(node.add_child('TERM', 'NODE'))
         while self.curr[0] in ('and', 'or'):
             node.add_child(self.curr[0], self.curr[1])
             self.__nextsym()
             self.__term(node.add_child('TERM', 'NODE'))
 
-    """
-    The term node method. Note that the EBNF expression for the term is:
-
-    opt ::= ("<" | "<=" | ">" | ">=" | "==" | "!=" | ["not"] "in")
-    term ::= 
-          factor opt factor { opt factor }
-        | ["not"] term
-    """
     def __term(self, node):
+        """
+        The term node method. Note that the EBNF expression for the term is:
+
+        opt ::= ("<" | "<=" | ">" | ">=" | "==" | "!=" | ["not"] "in")
+        term ::= 
+              factor opt factor { opt factor }
+            | ["not"] term
+        """
 
         if self.curr[0] == 'not':
             node.add_child(self.curr[0], self.curr[1])
@@ -407,16 +407,18 @@ class Parser:
             self.__factor(node.add_child('FACTOR', 'NODE'))
 
 
-    """
-    The factor node method. Note that the EBNF expression for the factor is:
-
-    factor ::= 
-          "string" 
-        | "number"
-        | identifier
-        | "(" eval ")"
-    """
     def __factor(self, node):
+        """
+        The factor node method. Note that the EBNF expression for the factor is:
+
+        factor ::= 
+              "string" 
+            | "number"
+            | "identifier"
+            | "(" eval ")"
+            | "storable"
+            | "[" { factor {"," factor} } "]" <-- python-like list.
+        """
         csym, cval = self.curr
 
         if self.__accept('string'):
@@ -429,6 +431,16 @@ class Parser:
             node.add_child(self.prev[0], self.prev[1])
 
         elif self.__accept('boolean'):
+            node.add_child(self.prev[0], self.prev[1])
+
+        elif self.__accept('['):
+            node.add_child(self.prev[0], self.prev[1])
+            self.__factor(node.add_child('FACTOR', ''))
+            while self.curr[0] == ',':
+                node.add_child(self.curr[0], self.curr[1])
+                self.__nextsym()
+                self.__factor(node.add_child('FACTOR', ''))
+            self.__expect(']')
             node.add_child(self.prev[0], self.prev[1])
 
         elif self.__accept('('):
@@ -494,7 +506,6 @@ class Evaluator:
         """
 
         for n in node.children:
-
             if n.symbol == 'string':
                 if n.parent.symbol != 'EXPR':
                     n.parent.children = []
@@ -513,6 +524,13 @@ class Evaluator:
                     else:
                         n.value = False
                     n.parent.symbol, n.parent.value = n.symbol, n.value
+
+            elif n.symbol == '[':
+                li = []
+                Evaluator.__to_list(n.parent, li)
+                if n.parent.symbol != 'EXPR':
+                    n.parent.children = []
+                    n.parent.symbol, n.parent.value = 'list', li
 
             elif n.symbol == 'identifier':
                 if scope == '':
@@ -592,6 +610,11 @@ class Evaluator:
         Do the operations pernaining the children of the node n.
         This method only changes the structure of node n, and does not
         return anything.
+
+        The changes in structure of node n is as follows:
+          - The children list of node n will be "removed" (i.e 
+            simply ovewritten by an empty list)
+          - n's symbol and value will be changed accordingly.
         """
 
         # If a node has only one child (i.e. no evaluation takes place),
@@ -600,7 +623,9 @@ class Evaluator:
             n.value = n.children[0].value
             n.children = []
             return
-
+    
+        # Append a sentry node to the children list to allow
+        # left-only operand (i.e boolean).
         n.add_child('SENTRY', 'SENTRY')
 
         i = 0
@@ -665,9 +690,9 @@ class Evaluator:
                     'boolean': lambda x, y: x
                 }
                 try:
-                    print('opt:', opt)
                     print('L:', left, 'R:', right)
                     res = operate[opt](left, right)
+                    print('res:', res)
                     if negate:
                         res = not res
                         negate = not negate
@@ -685,6 +710,40 @@ class Evaluator:
 
         n.children = []
         n.value = res
+
+    def __to_list(node, li):
+        """
+        Create a python list object from the given node.
+        The node must has its first child as a token with
+        the symbol '['.
+
+        In other words, if node n is parent of a factor node
+        whose children represents a list, this list will modify
+        node n into a node whose symbol is 'list' and whose value
+        is the python list object.
+        """
+        for n in node.children:
+            inner_li = []
+            if n.symbol == 'number':
+                li.append(int(n.value))
+            elif n.symbol == 'string':
+                li.append(str(n.value))
+            elif n.symbol == 'boolean':
+                if n.value == 'True':
+                    li.append(True)
+                else:
+                    li.append(False)
+            elif n.symbol == ',':
+                continue
+            elif n.symbol == ']':
+                continue
+            elif n.symbol == 'FACTOR':
+                if n.children[0].symbol == '[':
+                    li.append(inner_li)
+                    Evaluator.__to_list(n, inner_li)
+                else:
+                    Evaluator.__to_list(n, li)
+                n.children = []
             
     def __get_idn_val(idns, comp, attr):
         for idn in idns:
@@ -842,6 +901,7 @@ class Interpreter:
         post = Component('post')
         post['title'] = 'This cat is funny'
         post['score'] = 99
+        post['tags'] = ['aww', 'fluffy']
         comment = Component('comment')
         comment['body'] = 'No it isn\'t'
         comment['score'] = -19
