@@ -89,8 +89,6 @@ class Component:
 
         if not lenient:
             for k in self.attr:
-                print(k, self.get(k).is_assigned)
-                input()
                 if not self.get(k).is_assigned:
                     self.__throw_value_unassigned_error(k)
                     break
