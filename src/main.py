@@ -163,6 +163,7 @@ def main():
 #
 # Spider running on its thread.
 def run_spider(instance, args):
+    print('instance', instance)
     timeout = time.time() + args.timeout
 
     # If args.filter value is an sfl file, then use the utility method
@@ -201,17 +202,20 @@ def run_spider(instance, args):
         if time.time() > timeout:
             break
 
-        data = None 
-        if isinstance(r, ComponentLoader):
-            data = r.data
-        else:
-            data = r
-
         if args.output_dir:
+            if isinstance(r, ComponentLoader):
+                msg = 'Unable to use -O option for spider \'%s\': '\
+                      '(scraped data is not return as ComponentLoader '\
+                      'object).'\
+                      % (type(instance).name)
+                logging.error(msg)
+                raise RuntimeError(msg)
             Utils.component_loader_to_file(
-                data, args.output_dir, file_format=args.file_format
+                r, args.output_dir, file_format=args.file_format
             )
         else:
+            if isinstance(r, ComponentLoader):
+                data = r.data
             Utils.dict_to_file(data, args.output_file, 
                           file_format=args.file_format)
 
