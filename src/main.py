@@ -203,7 +203,7 @@ def run_spider(instance, args):
             break
 
         if args.output_dir:
-            if isinstance(r, ComponentLoader):
+            if not isinstance(r, ComponentLoader):
                 msg = 'Unable to use -O option for spider \'%s\': '\
                       '(scraped data is not return as ComponentLoader '\
                       'object).'\
