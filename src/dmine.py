@@ -189,7 +189,7 @@ class Variable:
         self.scrape_filter = scrape_filter
         self.name = name
         self.type = type
-        self.choice = None
+        self.choice = choice
         self.value = None
         self.default_value = default
         self.info = info
@@ -466,7 +466,7 @@ class ScrapeFilter:
             variable = INDENT + name + ' (type: ' + type + ', default: '\
                        + default
             if choice is not None:
-                variable += ', choice: '
+                variable += ', choice: ' + str(choice)
             variable += ')'
             wrapper.initial_indent = INDENT * 2
             wrapper.subsequent_indent = INDENT * 2
