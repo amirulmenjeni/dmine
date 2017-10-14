@@ -10,10 +10,6 @@ from dmine import Spider, ComponentLoader
 #   Simple Twitter spider using Tweepy and Selenium
 #   You will need to generate your own API keys before accessing the Twitter api
 #   Guide on how this is done: https://auth0.com/docs/connections/social/twitter
-#   TODO
-#   set replies limit
-#   Multithreading
-#   variable consistency
 
 access_token = "914875844623044609-sBDRGtzpWvcxVxznEutXO06IcPwNDbM"
 access_token_secret = "PlDBngjOu06GS9Bgu0wkOoehkag0ivzRc8ZJo3M7XtgSp"
