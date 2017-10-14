@@ -1,13 +1,19 @@
 import time
 import tweepy
+import os
+import os
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 from dmine import Spider, ComponentLoader
 
-#   A simple Twitter spider using Tweepy and Selenium
+#   Simple Twitter spider using Tweepy and Selenium
 #   You will need to generate your own API keys before accessing the Twitter api
 #   Guide on how this is done: https://auth0.com/docs/connections/social/twitter
+#   TODO
+#   set replies limit
+#   Multithreading
+#   variable consistency
 
 access_token = "914875844623044609-sBDRGtzpWvcxVxznEutXO06IcPwNDbM"
 access_token_secret = "PlDBngjOu06GS9Bgu0wkOoehkag0ivzRc8ZJo3M7XtgSp"
@@ -24,7 +30,7 @@ class TweetSpider(Spider):
         self.driver= self.init_driver()
 
     def init_driver(self):
-        driver = webdriver.PhantomJS(executable_path=r'C:\PhantomJs\bin\phantomjs\bin\phantomjs.exe')
+        driver = webdriver.PhantomJS(executable_path=r'phantomjs\bin\phantomjs.exe')
         driver.wait = WebDriverWait(driver, 5)
         return driver
 
@@ -41,7 +47,6 @@ class TweetSpider(Spider):
                        info='The retweets of the tweet')
         sf_tweet.add('likes_count',  info='The likes of the tweet')
         sf_tweet.add('replies_count', info='Replies of the tweet')
-
 
         # Attributes on replies / comments [WIP]
         sf_replies = sf.get('replies')
@@ -68,6 +73,7 @@ class TweetSpider(Spider):
         sf.add_var('before', default = time.strftime("%d/%m/%Y"), info='tweet posted before date | Format: YYYY/MM/DD') #Only works up to 7 days from the current date
         sf.add_var('keyword', default="", info='the keyword in the tweet')
         sf.add_var('lang', default="en", info='type of tweet')
+        sf.add_var('replies_limit', default=0, info='limit on replies to be shown if exists')
 
     def start(self, sf):
 
@@ -75,20 +81,20 @@ class TweetSpider(Spider):
         sf_tweet = sf.get('tweet')
 
         for x in searched_tweets:
-
             tag_name =  x.user.screen_name
             user_name = x.user.name
             tweet_id=x.id
 
             replies= self.fetch_replies(tag_name, tweet_id, sf)
-            replies_count=replies.__next__()
+            replies_count = next(replies)
+
             fav_count = self.fetch_fav()
 
             sf_tweet.set_attr_values(
                      author=tag_name,
-                     lang=str(x.lang),
-                     retweet_count=int(x.retweet_count),
-                     replies_count=int(replies_count),
+                     lang=x.lang,
+                     retweet_count=x.retweet_count,
+                     replies_count=replies_count,
                      likes_count=fav_count
             )
 
@@ -106,8 +112,8 @@ class TweetSpider(Spider):
                 })
 
                 #yield replies if skip_replies set to False
-            while True:
-                yield next(replies)
+            #while True:
+            #    yield next(replies)
 
             if sf.ret('skip_author_info'):
                 continue
@@ -173,10 +179,7 @@ class TweetSpider(Spider):
         time.sleep(2)
 
         try:
-            replies_div =self.driver.find_elements_by_xpath("//div[@data-component-context='replies']")
-
-            if len(replies_div) == 0: #No replies/comments
-                yield 0
+            replies_div =self.driver.find_elements_by_xpath(".//div[@data-component-context='replies']")
 
             #check if all replies are loaded
             current_page_length = 0
@@ -192,7 +195,8 @@ class TweetSpider(Spider):
         except:
             return 0
 
-        if sf.ret('skip_replies'): return len(replies_div) #returns the amount of replies for each tweet
+        if sf.ret('skip_replies'):
+            yield len(replies_div) #returns the amount of replies for each tweet
         c_list=[]
         replies_div.pop(0)
 
