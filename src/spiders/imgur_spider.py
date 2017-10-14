@@ -26,7 +26,6 @@ class ImgurSpider(Spider):
         sf_comment.add('body', info='The body of the comment.')
         sf_comment.add('author', info='The user who submitted the comment.')
         sf_comment.add('points', info='The points of the comment.')
-        sf_comment.add('score', info='The score of the comment.')
         sf_comment.add('ups', info='The upvotes the comment get.')
         sf_comment.add('downs', info='The downvotes the comment get.')
 
@@ -55,18 +54,13 @@ class ImgurSpider(Spider):
                  "with the @time attribute."
         )
         sf.add_var(
-            'tags', type=list, default=None,
-            info="If this list is not empty, then the spider will ONLY "\
-                 "scan for posts with the given tags in this list."
-        )
-        sf.add_var(
             'skip_comments', type=bool, default=False,
             info='Skip scanning over comments for every scanned post.'
         )
         sf.add_var(
             'page_limit', type=int, default=999999,
             info="The limit on how many page will the spider scan before it "\
-                 "stops."
+                 "stops. The default is -1 (no limit)."
         )
 
     def start(self, sf):
@@ -84,10 +78,11 @@ class ImgurSpider(Spider):
         sf_sections = sf.ret('sections')
         sf_time = sf.ret('time')
         sf_sort = sf.ret('sort')
-        sf_tags = sf.ret('tags')
+        p = 0
         for section in sf_sections:
-            p = 0
             while True:
+                if p >= sf.ret('page_limit'):
+                    return
                 page = self.imgur.gallery(
                     section=section,
                     sort=sf_sort,
@@ -115,7 +110,7 @@ class ImgurSpider(Spider):
 
             if sf.get('post').should_scrape():
                 yield ComponentLoader('post', {
-                    'id': post.id,
+                    'post_id': post.id,
                     'author': post.account_url,
                     'title': post.title,
                     'description': post.description,
@@ -130,23 +125,33 @@ class ImgurSpider(Spider):
                     'nsfw': post.nsfw
                 })
             
-                if sf.ret('skip_comments'):
-                    continue
-        
-                for comment in self.generate_comment(sf, post.id):
-                    yield comment
+            if sf.ret('skip_comments'):
+                continue
+            for comment in self.generate_comment(sf, post.id):
+                yield comment
 
     def generate_comment(self, sf, post_id):
+
         for comment in self.imgur.gallery_item_comments(post_id):
-            yield ComponentLoader('comment', {
-                'id': comment.id,
-                'parent_id': comment.parent_id,
-                'title': comment.comment,
-                'author': comment.author,
-                'datetime': comment.datetime,
-                'deleted': comment.deleted,
-                'points': comment.points,
-                'vote': comment.vote,
-                'downs': comment.downs,
-                'ups': comment.ups,
-            })
+
+            sf.get('comment').set_attr_values(
+                body=comment.comment,
+                author=comment.author,
+                points=comment.points,
+                ups=comment.ups,
+                downs=comment.downs
+            )
+            
+            if sf.get('comment').should_scrape():
+                yield ComponentLoader('comment', {
+                    'comment_id': comment.id,
+                    'parent_id': comment.parent_id,
+                    'body': comment.comment,
+                    'author': comment.author,
+                    'datetime': comment.datetime,
+                    'deleted': comment.deleted,
+                    'points': comment.points,
+                    'vote': comment.vote,
+                    'downs': comment.downs,
+                    'ups': comment.ups,
+                })
