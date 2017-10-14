@@ -163,7 +163,6 @@ def main():
 #
 # Spider running on its thread.
 def run_spider(instance, args):
-    print('instance', instance)
     timeout = time.time() + args.timeout
 
     # If args.filter value is an sfl file, then use the utility method
