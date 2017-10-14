@@ -83,8 +83,6 @@ class FBspider(Spider):
         sf_page.add('ratings', info="Ratings")
         sf_page.add('checkin_count', info="People who have visited")
 
-
-
         sf.add_var('search_type', type=list, default=['event', 'group', 'place', 'people', 'page'], info= "Determine the search type i.e groups, events, people ")
         sf.add_var('keyword', default="", info='keyword query')
         sf.add_var('limit', default="5", info='limit of results')
