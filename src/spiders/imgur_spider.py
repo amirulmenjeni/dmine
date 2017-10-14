@@ -20,7 +20,7 @@ class ImgurSpider(Spider):
         sf_post.add('downs', info='The number of downvotes the post get.')
         sf_post.add('views', info='The view count of the post.')
         sf_post.add('tags', info='The tags labelled on the post.')
-        sf_post.add('is_nsfw', info='States whether or not the post is NSFW.')
+        sf_post.add('nsfw', info='States whether or not the post is NSFW.')
 
         sf_comment = sf.get('comment')
         sf_comment.add('body', info='The body of the comment.')
@@ -41,8 +41,8 @@ class ImgurSpider(Spider):
         sf.add_var(
             'time', type=str,
             choice=['day', 'week', 'month',\
-                    'year', 'all time'],
-            default='today',
+                    'year', 'all'],
+            default='day',
             info="The time frame of when the post was submitted. Note that "\
                  "this only applies to a 'hot' section with 'top' sorting. "
         )
@@ -92,7 +92,7 @@ class ImgurSpider(Spider):
                     section=section,
                     sort=sf_sort,
                     page=p,
-                    window='day'
+                    window=sf.ret('time')
                 )
                 p += 1
                 for post in self.generate_post(sf, page):
@@ -100,17 +100,17 @@ class ImgurSpider(Spider):
 
     def generate_post(self, sf, page):
         for post in page:
-#            print(dir(post))
-#            return
             sf.get('post').set_attr_values(
                 author=post.account_url,
                 title=post.title,
                 description=post.description,
+                views=post.views,
                 points=int(post.points),
                 score=int(post.score),
                 ups=int(post.ups),
                 downs=int(post.downs),
-                is_nsfw=bool(post.nsfw)
+                tags=[tag['name'] for tag in post.tags],
+                nsfw=bool(post.nsfw)
             )
 
             if sf.get('post').should_scrape():
@@ -129,8 +129,9 @@ class ImgurSpider(Spider):
                     'tags': ','.join([tag['name'] for tag in post.tags]),
                     'nsfw': post.nsfw
                 })
-                
-                continue
+            
+                if sf.ret('skip_comments'):
+                    continue
         
                 for comment in self.generate_comment(sf, post.id):
                     yield comment
@@ -149,4 +150,3 @@ class ImgurSpider(Spider):
                 'downs': comment.downs,
                 'ups': comment.ups,
             })
-
