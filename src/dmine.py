@@ -77,7 +77,7 @@ class Component:
         self.scrape_filter.run_interpreter()
         return self.flag
 
-    def set_attr_values(self, **attributes):
+    def set_attr_values(self, lenient=False, **attributes):
         """
         @param **attributes: A dictionary of attributes where the attribute's
                              name is the key and its attribute value is 
@@ -85,6 +85,14 @@ class Component:
         """
         for k in attributes:
             self.get(k).value = attributes[k]
+            self.get(k).is_assigned = True
+
+        if not lenient:
+            for k in self.attr:
+                if not self.get(k).is_assigned:
+                    self.__throw_value_unassigned_error(k)
+                    break
+
 
     def all_set(self):
         """
@@ -95,6 +103,13 @@ class Component:
             if self.attr[k].value is None:
                 return False
         return True
+
+    def __throw_value_unassigned_error(self, name):
+        msg = 'When setting the attribute values of the component '\
+              '\'%s\', the attribute \'%s\' is not assigned.'\
+              % (self.name, name)
+        logging.error(msg)
+        raise ValueError(msg)
 
     def __throw_attr_name_error(self, name):
         msg = 'An attribute in the component \'%s\' with '\
@@ -121,6 +136,7 @@ class Attribute:
     name = ''
     info = ''
     value = None
+    is_assigned = False
 
     def __init__(self, component, name, info=''):
         """
@@ -136,6 +152,7 @@ class Attribute:
         self.name = name
         self.info = info
         self.value = None
+        self.is_assigned = False
 
 class Variable:
     """
@@ -172,7 +189,7 @@ class Variable:
         self.scrape_filter = scrape_filter
         self.name = name
         self.type = type
-        self.choice = None
+        self.choice = choice
         self.value = None
         self.default_value = default
         self.info = info
@@ -449,7 +466,7 @@ class ScrapeFilter:
             variable = INDENT + name + ' (type: ' + type + ', default: '\
                        + default
             if choice is not None:
-                variable += ', choice: '
+                variable += ', choice: ' + str(choice)
             variable += ')'
             wrapper.initial_indent = INDENT * 2
             wrapper.subsequent_indent = INDENT * 2

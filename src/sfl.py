@@ -362,12 +362,7 @@ class Parser:
                 storable = node.add_child(self.prev[0], self.prev[1])
                 self.__expect('=')
                 node.add_child(self.prev[0], self.prev[1])
-                if self.__accept('string')\
-                or self.__accept('number')\
-                or self.__accept('boolean'):
-                    node.add_child(self.prev[0], self.prev[1])
-                else:
-                    self.__throw_assignment_error(storable.value)                    
+                self.__factor(node.add_child('FACTOR', 'NODE'))
 
     def __eval(self, node):
         """
@@ -435,13 +430,17 @@ class Parser:
 
         elif self.__accept('['):
             node.add_child(self.prev[0], self.prev[1])
-            self.__factor(node.add_child('FACTOR', ''))
-            while self.curr[0] == ',':
+            if self.curr[0] == ']':
                 node.add_child(self.curr[0], self.curr[1])
                 self.__nextsym()
+            else:
                 self.__factor(node.add_child('FACTOR', ''))
-            self.__expect(']')
-            node.add_child(self.prev[0], self.prev[1])
+                while self.curr[0] == ',':
+                    node.add_child(self.curr[0], self.curr[1])
+                    self.__nextsym()
+                    self.__factor(node.add_child('FACTOR', ''))
+                self.__expect(']')
+                node.add_child(self.prev[0], self.prev[1])
 
         elif self.__accept('('):
             node.add_child(self.prev[0], self.prev[1])
@@ -569,7 +568,6 @@ class Evaluator:
                             Evaluator.__throw_eval_error(
                                 'Undefined storable: %s' % m.value
                             )
-                        # Assign value to the storable token.
                         val_token = n.children[i + 2]
                         val = val_token.value
                         if val_token.symbol == 'number':
@@ -690,9 +688,7 @@ class Evaluator:
                     'boolean': lambda x, y: x
                 }
                 try:
-                    print('L:', left, 'R:', right)
                     res = operate[opt](left, right)
-                    print('res:', res)
                     if negate:
                         res = not res
                         negate = not negate
