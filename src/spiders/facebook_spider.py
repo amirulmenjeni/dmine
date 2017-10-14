@@ -21,7 +21,7 @@ class FBspider(Spider):
         self.graph=facebook.GraphAPI(access_token, 2.10)
 
     def init_driver(self):
-        driver = webdriver.PhantomJS(executable_path=r'C:\PhantomJs\bin\phantomjs\bin\phantomjs.exe')
+        driver = webdriver.PhantomJS(executable_path=r'phantomjs\bin\phantomjs.exe')
         driver.wait = WebDriverWait(driver, 5)
         return driver
 
@@ -139,6 +139,7 @@ class FBspider(Spider):
             no_reply_count=fields['noreply_count']
             location= e['place']
 
+
             sf_event.set_attr_values(
                     author= owner,
                     event_name=event_name,
@@ -160,7 +161,8 @@ class FBspider(Spider):
                                 'no reply' : no_reply_count,
                                 'place name' : location['name']
                             }
-                data_dict.update(location['location'])
+                if 'location' in location.keys():
+                    data_dict.update(location['location'])
 
                 yield ComponentLoader('event', data_dict)
 
