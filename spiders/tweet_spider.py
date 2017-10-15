@@ -75,7 +75,6 @@ class TweetSpider(Spider):
 
         searched_tweets = self.scrape(sf)
         sf_tweet = sf.get('tweet')
-
         for x in searched_tweets:
             tag_name =  x.user.screen_name
             user_name = x.user.name
@@ -84,7 +83,7 @@ class TweetSpider(Spider):
             replies= self.fetch_replies(tag_name, tweet_id, sf)
             replies_count = next(replies)
 
-            fav_count = self.fetch_fav()
+            fav_count = next(self.fetch_fav())
 
             sf_tweet.set_attr_values(
                      author=tag_name,
@@ -107,9 +106,10 @@ class TweetSpider(Spider):
                                                  'fav count' : fav_count
                 })
 
-                #yield replies if skip_replies set to False
-            #while True:
-            #    yield next(replies)
+            #yield replies if skip_replies set to False and replies count not 0
+            if not sf.ret('skip_replies') and replies_count != 0:
+                for x in replies:
+                    yield x
 
             if sf.ret('skip_author_info'):
                 continue
@@ -167,7 +167,7 @@ class TweetSpider(Spider):
             f=int(f.split(' ')[0].replace(',', ''))
         except:
             f=0
-        return f
+        yield f
 
     def fetch_replies(self, author_name, tweet_id, sf):
         sf_replies=sf.get('replies')
@@ -189,7 +189,7 @@ class TweetSpider(Spider):
 
             replies_div =self.driver.find_elements_by_xpath("//div[@data-component-context='replies']")
         except:
-            return 0
+            yield 0
 
         if sf.ret('skip_replies'):
             yield len(replies_div) #returns the amount of replies for each tweet
