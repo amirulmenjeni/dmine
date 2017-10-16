@@ -1,7 +1,6 @@
 import time
 import tweepy
-import os
-import os
+import re
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
@@ -11,18 +10,10 @@ from dmine import Spider, ComponentLoader
 #   You will need to generate your own API keys before accessing the Twitter api
 #   Guide on how this is done: https://auth0.com/docs/connections/social/twitter
 
-access_token = "914875844623044609-sBDRGtzpWvcxVxznEutXO06IcPwNDbM"
-access_token_secret = "PlDBngjOu06GS9Bgu0wkOoehkag0ivzRc8ZJo3M7XtgSp"
-consumer_key = "fX7byz3KYiiQvfbs6xuCdgYYt"
-consumer_secret = "vGU5FngxDAPkzIc42bXsTKo5kgNEAhh6MibLDUYr0f4ApnHrzM"
-
 class TweetSpider(Spider):
     name = 'twitter'
 
     def __init__(self):
-        auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-        auth.set_access_token(access_token, access_token_secret)
-        self.api = tweepy.API(auth)
         self.driver= self.init_driver()
 
     def init_driver(self):
@@ -33,14 +24,13 @@ class TweetSpider(Spider):
     def setup_filter(self, sf):
         sf.add_com('tweet', info="A Tweet post")
         sf.add_com('tweet_user', info="Twitter user")
-        sf.add_com('replies', info="replies made to respective tweet")
+        sf.add_com('replies', info="replies made to a respective tweet")
 
         # Attributes on Tweet post
         sf_tweet = sf.get('tweet')
         sf_tweet.add('author', info='author of the tweet')
         sf_tweet.add('lang', info='The language of the tweet post')
-        sf_tweet.add('retweet_count',
-                       info='The retweets of the tweet')
+        sf_tweet.add('retweet_count', info='The retweets of the tweet')
         sf_tweet.add('likes_count',  info='The likes of the tweet')
         sf_tweet.add('replies_count', info='Replies of the tweet')
 
@@ -62,14 +52,27 @@ class TweetSpider(Spider):
         sf_user.add('statuses_count', info='No. of tweets user has posted')
 
         # Create variables.
+        #Line 64-68 is negliblle if you are not using your own Twitter account
+        sf.add_var('access_token', default='914875844623044609-sBDRGtzpWvcxVxznEutXO06IcPwNDbM', info='Required Keys to access api ')
+        sf.add_var('access_token_secret', default='PlDBngjOu06GS9Bgu0wkOoehkag0ivzRc8ZJo3M7XtgSp', info='Required Keys to access api ')
+        sf.add_var('consumer_key', default='fX7byz3KYiiQvfbs6xuCdgYYt', info='Required Keys to access api ')
+        sf.add_var('consumer_secret', default='vGU5FngxDAPkzIc42bXsTKo5kgNEAhh6MibLDUYr0f4ApnHrzM', info='Required Keys to access api ')
+
         sf.add_var('tweet_type', default='mixed', info='Tweet types to scan: recent, popular and mixed')
         sf.add_var('skip_replies', default=True, type=bool,info='Skip replies for each scanned tweet if set to True.')
         sf.add_var('skip_author_info', default=True, type=bool,info='Skip author info for each tweet')
         sf.add_var('limit', default= 5, info='limit results to be shown')
-        sf.add_var('before', default = time.strftime("%d/%m/%Y"), info='tweet posted before date | Format: YYYY/MM/DD') #Only works up to 7 days from the current date
         sf.add_var('keyword', default="", info='the keyword in the tweet')
         sf.add_var('lang', default="en", info='type of tweet')
         sf.add_var('replies_limit', default=0, info='limit on replies to be shown if exists')
+
+    def remove_emojis(self, text):
+        myre = re.compile(u'('
+                            u'\ud83c[\udf00-\udfff]|'
+                            u'\ud83d[\udc00-\ude4f\ude80-\udeff]|'
+                            u'[\u2600-\u26FF\u2700-\u27BF])+',
+                            re.UNICODE)
+        return myre.sub('',text)
 
     def start(self, sf):
 
@@ -95,15 +98,15 @@ class TweetSpider(Spider):
 
             if sf_tweet.should_scrape():
                 yield ComponentLoader('tweet', {
-                                                 'Tweet id' : tweet_id,
+                                                 'Tweet id' : int(tweet_id),
                                                  'author' : "@"+tag_name,
-                                                 'username' : user_name,
-                                                 'body' : x.text,
+                                                 'username' : self.remove_emojis(user_name),
+                                                 'body' : str(x.text),
                                                  'lang': x.lang,
                                                  'Date created' : x.created_at.strftime("%T %B %d, %Y"),
-                                                 'retweet' : x.retweet_count,
-                                                 'replies' : replies_count,
-                                                 'fav count' : fav_count
+                                                 'retweet' : int(x.retweet_count),
+                                                 'replies' : int(replies_count),
+                                                 'fav count' : int(fav_count)
                 })
 
             #yield replies if skip_replies set to False and replies count not 0
@@ -118,7 +121,7 @@ class TweetSpider(Spider):
 
             sf_user.set_attr_values(
                             tag_name=str(x.user.screen_name),
-                            username= str(x.user.name),
+                            username= self.remove_emojis(str(x.user.name)),
                             location=str(x.user.location),
                             followers=int(x.user.followers_count),
                             user_lang=str(x.user.lang),
@@ -128,28 +131,37 @@ class TweetSpider(Spider):
 
             if sf_user.should_scrape():
                         yield ComponentLoader('tweet_user', {
-                            'user_id' : x.user.id,
+                            'user_id' : int(x.user.id),
                             'tag_name' : x.user.screen_name,
-                            'username' :  x.user.name,
-                            'location' :  x.user.location,
+                            'username' :  self.remove_emojis(x.user.name),
+                            'location' :  str(x.user.location),
                             'user_lang' : x.user.lang,
-                            'followers' : x.user.followers_count,
-                            'statuses_count' : x.user.statuses_count,
+                            'followers' : int(x.user.followers_count),
+                            'statuses_count' : int(x.user.statuses_count),
                             'is_verified' : x.user.verified,
                         })
 
-
     def scrape(self, sf):
+        consumer_key=sf.ret('consumer_key')
+        consumer_secret=sf.ret('consumer_secret')
+        access_token=sf.ret('access_token')
+        access_token_secret=sf.ret('access_token_secret')
+
+
         searched_tweets = []
         last_id = -1
         limit = int(sf.ret('limit'))
         #Get all tweet results up to limit
 
+        auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
+        auth.set_access_token(access_token, access_token_secret)
+        api = tweepy.API(auth)
+
         while len(searched_tweets) < limit:
             count = limit - len(searched_tweets)
 
             try:
-                new_tweets = self.api.search(q=sf.ret('keyword'), result_type=sf.ret('tweet_type'), count=limit, max_id=str(last_id - 1))
+                new_tweets = api.search(q=sf.ret('keyword'), lang=sf.ret('lang'), result_type=sf.ret('tweet_type'), count=limit, max_id=str(last_id - 1))
                 if not new_tweets:
                     break
                 searched_tweets.extend(new_tweets)
@@ -232,17 +244,17 @@ class TweetSpider(Spider):
 
             #set component here
             sf_replies.set_attr_values(
-                    retweets= retweet_count,
-                    likes=likes_count,
+                    retweets= int(retweet_count),
+                    likes=int(likes_count),
                     body = contents.text,
                     author= tag_name
             )
 
             if sf_replies.should_scrape():
                         yield ComponentLoader('replies', {
-                                'reply id': tweet_id,
+                                'reply_id': int(tweet_id),
                                 'author' : tag_name,
-                                'body' : contents.text,
-                                'retweets' : retweet_count,
-                                'fav count' : likes_count
+                                'body' : self.remove_emojis(contents.text),
+                                'retweets' : int(retweet_count),
+                                'fav count' : int(likes_count)
                         })
