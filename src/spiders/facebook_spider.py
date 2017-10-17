@@ -10,12 +10,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 class FBspider(Spider):
     name = "facebook"
 
-    def __init__(self):
-        config = configparser.ConfigParser()
-        config.read("c:/Users/User/Desktop/CS/sem5/Task/config.ini")
-        user = config.get('Facebook', 'Email')
-        passw = config.get('Facebook', 'Password')
+    def init(self, sf):
         self.driver = self.init_driver()
+        user = sf.ret('user_ac')
+        passw = sf.ret('user_pw')
         self.login(self.driver, user, passw)
         access_token=self.generate_token(self.driver)
         self.graph=facebook.GraphAPI(access_token, 2.10)
@@ -83,6 +81,10 @@ class FBspider(Spider):
         sf_page.add('ratings', info="Ratings")
         sf_page.add('checkin_count', info="People who have visited")
 
+        #Defalt value for user_ac is a Dummy Facebook account
+        sf.add_var('user_ac', default="idubbzzz@zhorachu.com", info = "Username/Email")
+        sf.add_var('user_pw', default="pixelated", info = "password for the facebook account")
+
         sf.add_var('search_type', type=list, default=['event', 'group', 'place', 'people', 'page'], info= "Determine the search type i.e groups, events, people ")
         sf.add_var('keyword', default="", info='keyword query')
         sf.add_var('limit', default="5", info='limit of results')
@@ -90,7 +92,7 @@ class FBspider(Spider):
 
     def start(self, sf):
         types_list=sf.ret('search_type')
-
+        self.init(sf)
         if 'event' in types_list:
             for x in self.search_by_event(sf):
                 yield x
@@ -153,10 +155,10 @@ class FBspider(Spider):
                                 'Name' : event_name,
                                 'start time' : start_time,
                                 'end time' : end_time,
-                                'attending' : attending_count,
-                                'declined' :  declined_count,
-                                'maybe' : maybe_count,
-                                'no reply' : no_reply_count,
+                                'attending' : int(attending_count),
+                                'declined' :  int(declined_count),
+                                'maybe' : int(maybe_count),
+                                'no reply' : int(no_reply_count),
                                 'place name' : location['name']
                             }
                 if 'location' in location.keys():
@@ -291,7 +293,3 @@ class FBspider(Spider):
                                 'ratings' : fields['rating_count'],
                                 'checkin_count' : fields['checkins']
                 })
-
-
-    def search_by_post(self, keyword, limit): #subject to omit
-        fb_post = fbpost.FBspider_post(self.driver, keyword, limit)
