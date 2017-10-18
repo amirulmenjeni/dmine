@@ -1,74 +1,43 @@
-#!/bin/bash
-
-# dmine installer for Linux distros using pyinstaller.
-#
-# This script does the following:
-#  1. Installs dmine using pyinstaller to ./builds/linux directory.
-#  2. Create a symbolic link to run the dmine executable system wide.
-
-# Base name of the executable file.
-name="dmine"
-
-install_path="$PWD/builds/linux"
-
-# Use this method to add paths for pyinstaller.
-paths=""
-function add_path {
-    semicolon=""
-    if [[ $paths != "" ]]; then
-        semicolon=":" 
-    fi
-    paths=$paths$semicolon$1
-}
-
-# Use this method to add arguments to pass to the pyinstaller.
-declare -a arguments
-function add_arg {
-    arguments+=($1)
-}
-
-# Add paths for imports.
-add_path "./src"
-add_path "./dep-py"
-
-if [[ -d dist ]]; then
-    rm -rf dist
+# Expects ./builds/linux directory to exist.
+if [ ! -d builds/linux/dmine ]; then
+    echo "Error: Installer expects './builds/linux' directory in the "\
+         "current directory ($PWD)." 1>&2
+    exit 1
 fi
 
-# Build the arguments.
-add_arg "--noconfirm --log-level=WARN"
-add_arg "--onedir" 
-add_arg "--clean"
-add_arg "--paths=$paths"
-add_arg "--add-data=./src/spiders:./spiders/"
-add_arg "--additional-hooks-dir=./hooks"
-add_arg "--distpath=$install_path"
-add_arg "--name=$name"
-add_arg "./src/main.py "
-while read -r line; do # Add all spiders.
-    add_arg "$line "
-done < <(find ./src/spiders/ -maxdepth 1 -type f | grep -v __init__.py)
+# Test if a dmine folder already exist. If it exists, prompt the user
+# to delete the existing dmine directory and make a new install.
+reply=0
+if [ -d /opt/dmine ]; then
+    echo "Warning: A directory called dmine already exists in /opt."\
+         "Do you want to delete this existing directory to install dmine?"\
+         "(y/n)"
+    while true;
+    do
+        read reply
+        if [[ $reply == 'y' ]] || [[ $reply == 'n'  ]]; then
+            break
+        else
+            echo "Invalid reply. Please enter either 'y' or 'n'."
+        fi
+    done
+fi
 
-# Install.
-echo "Installing $name to '$install_path'"
-pyinstaller ${arguments[@]}
+# Copy the linux build to /opt.
+echo "==> Installing to /opt/dmine"
+if [[ $reply == 'y' ]] || [[ $reply == 0  ]]; then
+    sudo cp -r ./builds/linux/dmine /opt
+fi
+
 
 # Create symbolic link to the executable file at /usr/local/bin.
-# If the symbolic link already exists, delete it before creating
-# the link.
-echo "Attempting to create the symbolic link '/usr/local/bin/$name'"
-if [[ -L "/usr/local/bin/$name"  ]]; then
-    echo "The symbolic link already exist. Deleting it now."
-    rm "/usr/local/bin/$name"
-fi
-ln -s "$install_path/$name/$name" "/usr/local/bin/dmine"
-echo "Finished creating the symbolic link."
-
-# Move the .spec file to build dir.
-mv $name.spec $install_path
-
-if [[ -d build ]]; then
-    rm -rf build
+echo "==> Attempting to create the symbolic link '/usr/local/bin/dmine'"
+if [[ -L "/usr/local/bin/dmine"  ]]; then
+    echo "The symbolic link already exist."
+else
+    ln -s "$/opt/dmine/dmine" "/usr/local/bin/dmine"
 fi
 
-echo "Installation successful. Please run 'dmine -h' to ensure."
+# Finish.
+echo "==> Installation finished. Please run 'dmine' to ensure successful "\
+     "installation."
