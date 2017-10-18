@@ -1,16 +1,15 @@
 #!/bin/bash
 
-#
 # dmine installer for Linux distros using pyinstaller.
 #
-# Use this to build the folder containing an executable binary file
-# to run dmine together its data files and libraries.
-
+# This script does the following:
+#  1. Installs dmine using pyinstaller to ./builds/linux directory.
+#  2. Create a symbolic link to run the dmine executable system wide.
 
 # Base name of the executable file.
 name="dmine"
 
-install_path="/opt"
+install_path="$PWD/builds/linux"
 
 # Use this method to add paths for pyinstaller.
 paths=""
