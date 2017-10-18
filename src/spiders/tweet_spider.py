@@ -18,7 +18,7 @@ class TweetSpider(Spider):
         self.driver= self.init_driver()
 
     def init_driver(self):
-        path = os.path.join(os.path.dirname(__file__), r'phantomjs\bin\phantomjs.exe')
+        path = os.path.join(os.getcwd(), 'dep-bin', 'phantomjs', 'bin', 'phantomjs')
         driver = webdriver.PhantomJS(executable_path=path)
         driver.wait = WebDriverWait(driver, 5)
         return driver
@@ -65,7 +65,7 @@ class TweetSpider(Spider):
         sf.add_var('skip_author_info', default=True, type=bool,info='Skip author info for each tweet')
         sf.add_var('limit', default= 5, info='limit results to be shown')
         sf.add_var('keyword', default="", info='the keyword in the tweet')
-        sf.add_var('lang', default="en", info='type of tweet')
+        sf.add_var('lang', default="en", info='language of tweet')
         sf.add_var('replies_limit', default=0, info='limit on replies to be shown if exists')
 
     def remove_emojis(self, text):
