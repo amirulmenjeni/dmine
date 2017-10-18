@@ -18,7 +18,7 @@ class FBspider(Spider):
         self.graph=facebook.GraphAPI(access_token, 2.10)
 
     def init_driver(self):
-        path = os.path.join(os.path.dirname(__file__), r'phantomjs\bin\phantomjs.exe')
+        path = os.path.join(os.getcwd(), 'dep-bin', 'phantomjs', 'bin', 'phantomjs')
         driver = webdriver.PhantomJS(executable_path=path)
         driver.wait = WebDriverWait(driver, 5)
         return driver
@@ -180,13 +180,14 @@ class FBspider(Spider):
 
             owner=fields['owner']['name'] if 'owner' in fields else "None specified"
             last_updated=fields['updated_time'] if 'updated_time' in fields else "None"
+            description=fields['description'] if 'description' in fields else "None"
 
             sf_group.set_attr_values(
                     owner= owner,
                     privacy_type=e['privacy'],
                     member_request_count = fields['member_request_count'],
                     last_updated= last_updated,
-                    desc= fields['description']
+                    desc= description
             )
 
             if sf_group.should_scrape():
@@ -196,7 +197,7 @@ class FBspider(Spider):
                                 'privacy type' : e['privacy'],
                                 'member requestcount' : fields['member_request_count'],
                                 'last updated' : last_updated,
-                                'description' :self.unicode_decode(fields['description'].replace("\n", " "))
+                                'description' :self.unicode_decode(description.replace("\n", " "))
                     })
 
     def search_by_place(self, sf):
