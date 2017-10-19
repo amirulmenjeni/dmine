@@ -1,8 +1,7 @@
 import facebook
 import time
 import sys
-import configparser
-from spiders import facebook_spider_post
+import os
 from dmine import Spider, ComponentLoader
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
@@ -19,7 +18,8 @@ class FBspider(Spider):
         self.graph=facebook.GraphAPI(access_token, 2.10)
 
     def init_driver(self):
-        driver = webdriver.PhantomJS(executable_path=r'phantomjs\bin\phantomjs.exe')
+        path = os.path.join(os.getcwd(), 'dep-bin', 'phantomjs', 'bin', 'phantomjs')
+        driver = webdriver.PhantomJS(executable_path=path)
         driver.wait = WebDriverWait(driver, 5)
         return driver
 
@@ -93,25 +93,17 @@ class FBspider(Spider):
     def start(self, sf):
         types_list=sf.ret('search_type')
         self.init(sf)
-        if 'event' in types_list:
-            for x in self.search_by_event(sf):
-                yield x
 
-        if 'group' in types_list:
-            for x in self.search_by_group(sf):
-                yield x
+        func_dict = { 'event' : self.search_by_event(sf),
+                      'group' : self.search_by_group(sf),
+                      'place' : self.search_by_place(sf),
+                      'people' : self.search_by_people(sf),
+                      'page' : self.search_by_page(sf)
+                     }
 
-        if 'place' in types_list:
-            for x in self.search_by_place(sf):
-                yield x
-
-        if 'people' in types_list:
-            for x in self.search_by_people(sf):
-                yield x
-
-        if 'page' in types_list:
-            for x in self.search_by_page(sf):
-                yield x
+        for types in types_list:
+            for j in func_dict[types]:
+                yield j
 
     def unicode_decode(self, text):
         try:
@@ -119,6 +111,12 @@ class FBspider(Spider):
             return text.translate(non_bmp_map)
         except UnicodeDecodeError:
             return text.encode('utf-8')
+
+    def validate_field(self, key, data_dict):
+        if key in data_dict:
+            return data_dict[key]
+        else:
+            return "None"
 
     def search_by_event(self, sf):
         limit=sf.ret('limit')
@@ -129,9 +127,8 @@ class FBspider(Spider):
         for e in data_dict:
             fields=self.graph.get_object(id=e['id'],fields='attending_count, declined_count, owner, maybe_count, noreply_count')
             event_name=self.unicode_decode(e['name'])
-            start_time= e['start_time'].split('T')
-
-            end_time=e['end_time'].split('T')
+            start_time= self.validate_field('start_time', e)
+            end_time= self.validate_field('end_time', e)
             owner=fields['owner']['name']
             attending_count = fields['attending_count']
             declined_count=fields['declined_count']
@@ -177,27 +174,27 @@ class FBspider(Spider):
         for e in data_dict:
             fields=self.graph.get_object(id=e['id'],
                              fields='updated_time, member_request_count, owner, description')
-
-            owner=fields['owner']['name'] if 'owner' in fields else "None specified"
-            last_updated=fields['updated_time'] if 'updated_time' in fields else "None"
+            owner=self.validate_field('owner', fields)
+            if owner != "None":
+                owner= owner['name']
+            last_updated=self.validate_field('updated_time', fields)
+            description=self.validate_field('description', fields)
 
             sf_group.set_attr_values(
                     owner= owner,
                     privacy_type=e['privacy'],
                     member_request_count = fields['member_request_count'],
-                    last_updated= last_updated,
-                    desc= fields['description']
+                    last_updated= last_updated
             )
 
             if sf_group.should_scrape():
                 yield ComponentLoader('group', {
-                                'Group id' : e['id'],
-                                'owner' : owner,
-                                'privacy type' : e['privacy'],
-                                'member requestcount' : fields['member_request_count'],
-                                'last updated' : last_updated,
-                                'description' :self.unicode_decode(fields['description'].replace("\n", " "))
-                    })
+                                                    'Group id' : e['id'],
+                                                    'owner' : owner,
+                                                    'privacy type' : e['privacy'],
+                                                    'member requestcount' : fields['member_request_count'],
+                                                    'last updated' : last_updated
+                                                })
 
     def search_by_place(self, sf):
         limit=sf.ret('limit')
