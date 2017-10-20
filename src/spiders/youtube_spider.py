@@ -29,7 +29,14 @@ class YoutubeSpider(Spider):
         sf_vid.add('description')
         sf_vid.add('channel_author')
 
-        sf.add_var('search_types', type=list, default=['video'], info='Search options [ video, channel, playlist ]')
+        sf_channel=sf.get('channel')
+        sf_channel.add('channel_name')
+        sf_channel.add('description')
+        sf_channel.add('date_created')
+        sf_channel.add('country')
+
+
+        sf.add_var('search_types', type=list, default=['channel'], info='Search options [ video, channel, playlist ]')
         sf.add_var('order_by', default='relevance', info= 'Available options: upload date, ratings, relevance, title[Resources are sorted alphabetically by title], videocount, viewcount')
         sf.add_var('limit_vid', type=int, default = '5', info='limit for scraped video')
         sf.add_var('limit_channel', type=int, default = '5', info='limit for scraped video')
@@ -159,9 +166,47 @@ class YoutubeSpider(Spider):
                 json_data = json.loads(json_text)
 
     def search_by_channel(self, sf, url):
-        TODO
-        pass
+        self.driver.get(url)
+        json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
+        sf_channel=sf.get('channel')
+        dev_key=sf.ret('dev_key')
+        for channel in json_data['items']:
+            channel_id=channel['id']['channelId']
+            url_stats=base_url+'channels?part=statistics&id={}&key={}'.format(channel_id, dev_key)
+            self.driver.get(url_stats)
+            json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
+
+            stats=json_data['items'][0]['statistics']
+            if not stats['hiddenSubscriberCount']:
+                subscribers_count = stats['subscriberCount']
+            else:
+                subscribers_count = "hidden"
+            video_count = stats['videoCount']
+            views_count = stats['viewCount']
+
+            url_stats=base_url+'channels?part=snippet&id={}&key={}'.format(channel_id, dev_key)
+            self.driver.get(url_stats)
+            json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
+            items=json_data['items'][0]['snippet']
+
+            location=items['country'] if 'country' in items else "none"
+            sf_channel.set_attr_values(
+                    channel_name= channel['snippet']['title'],
+                    description=channel['snippet']['description'],
+                    date_created=channel['snippet']['publishedAt'],
+                    country=location
+            )
+
+            if sf_channel.should_scrape():
+                yield ComponentLoader('channel', { 'channel_id' : channel_id,
+                                                   'channel_name' : channel['snippet']['title'],
+                                                   'description' : channel['snippet']['description'],
+                                                   'date_created' : channel['snippet']['publishedAt'],
+                                                   'subscribers_count' : subscribers_count,
+                                                   'video_count' : video_count,
+                                                   'views_count' : views_count,
+                                                   'country' : location
+                                                })
 
     def search_by_playlist(self, sf, url):
-        TODO
         pass
