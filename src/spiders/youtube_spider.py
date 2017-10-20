@@ -4,12 +4,14 @@ from dmine import Spider, ComponentLoader
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 
+base_url = "https://www.googleapis.com/youtube/v3/"
+
 class YoutubeSpider(Spider):
     name = "youtube"
 
     def init(self, sf):
         self.driver = self.init_driver()
-        
+
     def init_driver(self):
         path = os.path.join(os.getcwd(), 'dep-bin', 'phantomjs', 'bin', 'phantomjs')
         driver = webdriver.PhantomJS(executable_path=path)
@@ -27,17 +29,16 @@ class YoutubeSpider(Spider):
         sf_vid.add('description')
         sf_vid.add('channel_author')
 
-        sf.add_var('search_types', type=list, default=['video', 'channel', 'playlist'], info='Search options [ video, channel, playlist ]')
+        sf.add_var('search_types', type=list, default=['video'], info='Search options [ video, channel, playlist ]')
         sf.add_var('order_by', default='relevance', info= 'Available options: upload date, ratings, relevance, title[Resources are sorted alphabetically by title], videocount, viewcount')
-        sf.add_var('limit_vid', default = '5', info='limit for scraped video')
-        sf.add_var('limit_channel', default = '5', info='limit for scraped video')
-        sf.add_var('limit_playlist', default = '5', info='limit for scraped video')
+        sf.add_var('limit_vid', type=int, default = '5', info='limit for scraped video')
+        sf.add_var('limit_channel', type=int, default = '5', info='limit for scraped video')
+        sf.add_var('limit_playlist', type=int, default = '5', info='limit for scraped video')
         sf.add_var('keyword', default='', info='keyword to be scanned')
-        sf.add_var('skip_comments', default='True', info='Scan comments option')
+        sf.add_var('skip_comments', type=bool, default='True', info='Scan comments option')
         if sf.ret('skip_comments'):
             sf_vid.add('limit_comment', default='20', info='Limit the number of comments scanned per video')
         sf.add_var('dev_key', default='AIzaSyCzsqDb0cxtKTcVDNZUU6mWbyPnAIRa0bs', info='Developer Key to access Youtube API')
-
 
     def start(self, sf):
         self.init(sf)
@@ -64,13 +65,33 @@ class YoutubeSpider(Spider):
         types=sf.ret('search_types')
 
         for search_type in types:
-            url = 'https://www.googleapis.com/youtube/v3/search?q={}&key={}&part=snippet&maxResults={}&type={}'.format(q, dev_key, types_dict[search_type], search_type)
+            if types_dict[search_type] > 50: #if limit is set to above 50 (Max resources returned per page is 50)
+                 types_dict[search_type] = 50
+
+            url = base_url + 'search?q={}&key={}&part=snippet&maxResults={}&type={}'.format(q, dev_key, types_dict[search_type], search_type)
             types_dict[search_type]=url #replace limit values with url
 
         return types_dict
 
-    def search_by_vid(self, sf, url):
+    def get_category_tags(self, vid_id, dev_key):
+        url=base_url+'videos?id={}&part=snippet&key={}'.format(vid_id, dev_key)
         self.driver.get(url)
+        json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
+        tags=""
+        if 'tags' in json_data['items'][0]['snippet']:
+            tags=json_data['items'][0]['snippet']['tags']
+        category_id=json_data['items'][0]['snippet']['categoryId']
+
+        url=base_url+'videoCategories?id={}&part=snippet&key={}'.format(category_id, dev_key)
+        self.driver.get(url)
+        json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
+        category=json_data['items'][0]['snippet']['title']
+        return tags, category
+
+    def search_by_vid(self, sf, url):
+        order_by=sf.ret('order_by')
+
+        self.driver.get(url+"&order="+order_by)
         json_text = self.driver.find_element_by_tag_name('body').text
         json_data = json.loads(json_text)
 
@@ -79,46 +100,68 @@ class YoutubeSpider(Spider):
         total_results=json_data['pageInfo']['totalResults']
 
         i=1
-        for result in json_data['items']:
+        limit=sf.ret('limit_vid')
+        page_token=""
 
-            vid_id=result['id']['videoId']
-            url='https://www.googleapis.com/youtube/v3/videos?part=statistics&id={}&key={}'.format(vid_id, dev_key)
-            self.driver.get(url)
-            vid_stats=json.loads(self.driver.find_element_by_tag_name('body').text)
-            stats = vid_stats['items'][0]['statistics']
+        while i <= limit: #get resources until limit is reached
 
-            views=stats['viewCount']
-            likes=stats['likeCount']
-            dislikes=stats['dislikeCount']
-            fav=stats['favoriteCount']
-            comment=stats['commentCount']
+            for result in json_data['items']:
+                if i > limit: return
+                vid_id=result['id']['videoId']
+                url_stats=base_url+'videos?part=statistics&id={}&key={}'.format(vid_id, dev_key)
+                self.driver.get(url_stats)
 
-            sf_vid.set_attr_values(
-                    title= result['snippet']['title'],
-                    description=result['snippet']['description'],
-                    channel_author=result['snippet']['channelTitle'],
-                    publishedAt=result['snippet']['publishedAt']
-            )
+                vid_stats=json.loads(self.driver.find_element_by_tag_name('body').text)
+                stats = vid_stats['items'][0]['statistics']
+                views=stats['viewCount']
 
-            if sf_vid.should_scrape():
-                yield ComponentLoader('video', { 'vid_id' : result['id']['videoId'],
-                                                 'entry_out_of' :"{} out of {}".format(i, total_results),
-                                                 'title' : result['snippet']['title'],
-                                                 'description' : result['snippet']['description'],
-                                                 'channel_author':result['snippet']['channelTitle'],
-                                                 'publishedAt': result['snippet']['publishedAt'].split("T"),
-                                                 'views_count' : views,
-                                                 'likes_count' : likes,
-                                                 'dislike_count' : dislikes,
-                                                 'fav_count' : fav,
-                                                 'commennt_count' : comment
-                                                })
-            i+=1
+                if 'likeCount' in stats:
+                    likes=stats['likeCount']
+                    dislikes=stats['dislikeCount']
+                else:
+                    likes, dislikes = 'Disabled', 'Disabled'
 
+                comment=stats['commentCount']
 
+                tags, category = self.get_category_tags(vid_id, dev_key)
+
+                sf_vid.set_attr_values(
+                        title= result['snippet']['title'],
+                        description=result['snippet']['description'],
+                        channel_author=result['snippet']['channelTitle'],
+                        publishedAt=result['snippet']['publishedAt']
+                )
+
+                if sf_vid.should_scrape():
+                    yield ComponentLoader('video', { 'vid_id' : result['id']['videoId'],
+                                                     'entry_out_of' :"{} out of {}".format(i, total_results),
+                                                     'title' : result['snippet']['title'],
+                                                     'description' : result['snippet']['description'],
+                                                     'channel_author':result['snippet']['channelTitle'],
+                                                     'publishedAt': result['snippet']['publishedAt'].split("T"),
+                                                     'views_count' : views,
+                                                     'likes_count' : likes,
+                                                     'dislike_count' : dislikes,
+                                                     'comment_count' : comment,
+                                                     'tags' : tags,
+                                                     'category' : category
+                                                    })
+                i+=1
+
+                if "nextPageToken" in json_data:
+                    page_token=json_data['nextPageToken']
+                else:
+                    break
+
+                url=url+"&pageToken="+page_token
+                self.driver.get(url)
+                json_text = self.driver.find_element_by_tag_name('body').text
+                json_data = json.loads(json_text)
 
     def search_by_channel(self, sf, url):
+        TODO
         pass
 
     def search_by_playlist(self, sf, url):
+        TODO
         pass
