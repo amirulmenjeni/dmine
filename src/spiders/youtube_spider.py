@@ -27,7 +27,7 @@ class YoutubeSpider(Spider):
         sf_vid.add('description')
         sf_vid.add('channel_author')
 
-        sf.add_var('search_types', type=list, default=['video'], info='Search options [ video, channel, playlist ]')
+        sf.add_var('search_types', type=list, default=['video', 'channel', 'playlist'], info='Search options [ video, channel, playlist ]')
         sf.add_var('order_by', default='relevance', info= 'Available options: upload date, ratings, relevance, title[Resources are sorted alphabetically by title], videocount, viewcount')
         sf.add_var('limit_vid', default = '5', info='limit for scraped video')
         sf.add_var('limit_channel', default = '5', info='limit for scraped video')
