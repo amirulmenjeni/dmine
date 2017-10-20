@@ -9,8 +9,7 @@ class YoutubeSpider(Spider):
 
     def init(self, sf):
         self.driver = self.init_driver()
-
-
+        
     def init_driver(self):
         path = os.path.join(os.getcwd(), 'dep-bin', 'phantomjs', 'bin', 'phantomjs')
         driver = webdriver.PhantomJS(executable_path=path)
@@ -29,7 +28,7 @@ class YoutubeSpider(Spider):
         sf_vid.add('channel_author')
 
         sf.add_var('search_types', type=list, default=['video'], info='Search options [ video, channel, playlist ]')
-        sf.add_Var('order_by', default='relevance', info= 'Available options: upload date, ratings, relevance, title[Resources are sorted alphabetically by title], videocount, viewcount')
+        sf.add_var('order_by', default='relevance', info= 'Available options: upload date, ratings, relevance, title[Resources are sorted alphabetically by title], videocount, viewcount')
         sf.add_var('limit_vid', default = '5', info='limit for scraped video')
         sf.add_var('limit_channel', default = '5', info='limit for scraped video')
         sf.add_var('limit_playlist', default = '5', info='limit for scraped video')
@@ -76,10 +75,24 @@ class YoutubeSpider(Spider):
         json_data = json.loads(json_text)
 
         sf_vid=sf.get('video')
-
+        dev_key=sf.ret('dev_key')
         total_results=json_data['pageInfo']['totalResults']
+
         i=1
         for result in json_data['items']:
+
+            vid_id=result['id']['videoId']
+            url='https://www.googleapis.com/youtube/v3/videos?part=statistics&id={}&key={}'.format(vid_id, dev_key)
+            self.driver.get(url)
+            vid_stats=json.loads(self.driver.find_element_by_tag_name('body').text)
+            stats = vid_stats['items'][0]['statistics']
+
+            views=stats['viewCount']
+            likes=stats['likeCount']
+            dislikes=stats['dislikeCount']
+            fav=stats['favoriteCount']
+            comment=stats['commentCount']
+
             sf_vid.set_attr_values(
                     title= result['snippet']['title'],
                     description=result['snippet']['description'],
@@ -88,14 +101,21 @@ class YoutubeSpider(Spider):
             )
 
             if sf_vid.should_scrape():
-                yield ComponentLoader('group', { 'vid_id' : result['id']['videoId'],
+                yield ComponentLoader('video', { 'vid_id' : result['id']['videoId'],
+                                                 'entry_out_of' :"{} out of {}".format(i, total_results),
                                                  'title' : result['snippet']['title'],
                                                  'description' : result['snippet']['description'],
                                                  'channel_author':result['snippet']['channelTitle'],
                                                  'publishedAt': result['snippet']['publishedAt'].split("T"),
-                                                 'entry_out_of' :"{} out of {}".format(i, total_results)
+                                                 'views_count' : views,
+                                                 'likes_count' : likes,
+                                                 'dislike_count' : dislikes,
+                                                 'fav_count' : fav,
+                                                 'commennt_count' : comment
                                                 })
             i+=1
+
+
 
     def search_by_channel(self, sf, url):
         pass
