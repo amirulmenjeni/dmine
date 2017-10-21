@@ -25,7 +25,7 @@ class YoutubeSpider(Spider):
 
         sf_vid=sf.get('video')
         sf_vid.add('publishedAt')
-        sf_vid.add('title')
+        sf_vid.add('video_name')
         sf_vid.add('description')
         sf_vid.add('channel_author')
 
@@ -35,8 +35,14 @@ class YoutubeSpider(Spider):
         sf_channel.add('date_created')
         sf_channel.add('country')
 
+        sf_playlist=sf.get('playlist')
+        sf_playlist.add('playlist_name')
+        sf_playlist.add('author_playlist')
+        sf_playlist.add('date_created')
+        sf_playlist.add('description')
 
-        sf.add_var('search_types', type=list, default=['channel'], info='Search options [ video, channel, playlist ]')
+
+        sf.add_var('search_types', type=list, default=['playlist'], info='Search options [ video, channel, playlist ]')
         sf.add_var('order_by', default='relevance', info= 'Available options: upload date, ratings, relevance, title[Resources are sorted alphabetically by title], videocount, viewcount')
         sf.add_var('limit_vid', type=int, default = '5', info='limit for scraped video')
         sf.add_var('limit_channel', type=int, default = '5', info='limit for scraped video')
@@ -111,7 +117,6 @@ class YoutubeSpider(Spider):
         page_token=""
 
         while i <= limit: #get resources until limit is reached
-
             for result in json_data['items']:
                 if i > limit: return
                 vid_id=result['id']['videoId']
@@ -133,7 +138,7 @@ class YoutubeSpider(Spider):
                 tags, category = self.get_category_tags(vid_id, dev_key)
 
                 sf_vid.set_attr_values(
-                        title= result['snippet']['title'],
+                        video_name= result['snippet']['title'],
                         description=result['snippet']['description'],
                         channel_author=result['snippet']['channelTitle'],
                         publishedAt=result['snippet']['publishedAt']
@@ -170,43 +175,104 @@ class YoutubeSpider(Spider):
         json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
         sf_channel=sf.get('channel')
         dev_key=sf.ret('dev_key')
-        for channel in json_data['items']:
-            channel_id=channel['id']['channelId']
-            url_stats=base_url+'channels?part=statistics&id={}&key={}'.format(channel_id, dev_key)
-            self.driver.get(url_stats)
-            json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
 
-            stats=json_data['items'][0]['statistics']
-            if not stats['hiddenSubscriberCount']:
-                subscribers_count = stats['subscriberCount']
-            else:
-                subscribers_count = "hidden"
-            video_count = stats['videoCount']
-            views_count = stats['viewCount']
+        i=1
+        limit=sf.ret('limit_channel')
+        page_token=""
 
-            url_stats=base_url+'channels?part=snippet&id={}&key={}'.format(channel_id, dev_key)
-            self.driver.get(url_stats)
-            json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
-            items=json_data['items'][0]['snippet']
+        flag = False
+        while i <= limit: #get resources until limit is reached
 
-            location=items['country'] if 'country' in items else "none"
-            sf_channel.set_attr_values(
-                    channel_name= channel['snippet']['title'],
-                    description=channel['snippet']['description'],
-                    date_created=channel['snippet']['publishedAt'],
-                    country=location
-            )
+            for channel in json_data['items']:
+                if i > limit or flag: return
+                channelID=channel['id']['channelId']
 
-            if sf_channel.should_scrape():
-                yield ComponentLoader('channel', { 'channel_id' : channel_id,
-                                                   'channel_name' : channel['snippet']['title'],
-                                                   'description' : channel['snippet']['description'],
-                                                   'date_created' : channel['snippet']['publishedAt'],
-                                                   'subscribers_count' : subscribers_count,
-                                                   'video_count' : video_count,
-                                                   'views_count' : views_count,
-                                                   'country' : location
-                                                })
+                url_stats=base_url+'channels?part=statistics&id={}&key={}'.format(channelID, dev_key)
+
+                self.driver.get(url_stats)
+
+                json_stats=json.loads(self.driver.find_element_by_tag_name('body').text)
+
+                stats=json_stats['items'][0]['statistics']
+                if not stats['hiddenSubscriberCount']:
+                    subscribers_count = stats['subscriberCount']
+                else:
+                    subscribers_count = "hidden"
+                video_count = stats['videoCount']
+                views_count = stats['viewCount']
+
+                url_stats=base_url+'channels?part=snippet&id={}&key={}'.format(channelID, dev_key)
+                self.driver.get(url_stats)
+                parsed_json=json.loads(self.driver.find_element_by_tag_name('body').text)
+                items=parsed_json['items'][0]['snippet']
+
+                location=items['country'] if 'country' in items else "none"
+                sf_channel.set_attr_values(
+                        channel_name= channel['snippet']['title'],
+                        description=channel['snippet']['description'],
+                        date_created=channel['snippet']['publishedAt'],
+                        country=location
+                )
+
+                if sf_channel.should_scrape():
+                    yield ComponentLoader('channel', { 'channel_id' : channelID,
+                                                       'channel_name' : channel['snippet']['title'],
+                                                       'description' : channel['snippet']['description'],
+                                                       'date_created' : channel['snippet']['publishedAt'],
+                                                       'subscribers_count' : subscribers_count,
+                                                       'video_count' : video_count,
+                                                       'views_count' : views_count,
+                                                       'country' : location
+                                                    })
+
+                i+=1
+                if "nextPageToken" in json_data:
+                    page_token=json_data['nextPageToken']
+                else:
+                    flag=True
+                    break
+
+                url=url+"&pageToken="+page_token
+                self.driver.get(url)
+                json_text = self.driver.find_element_by_tag_name('body').text
+                json_data = json.loads(json_text)
 
     def search_by_playlist(self, sf, url):
-        pass
+        self.driver.get(url)
+        json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
+        sf_playlist=sf.get('playlist')
+        dev_key=sf.ret('dev_key')
+        limit=sf.ret('limit_playlist')
+        total_results=json_data['pageInfo']['totalResults']
+
+        i=1
+        page_token=""
+        flag = False
+        while i <= limit: #get resources until limit is reached
+            for playlist in json_data['items']:
+                if i > limit or flag: return
+                sf_playlist.set_attr_values(
+                        playlist_name= playlist['snippet']['title'],
+                        description=playlist['snippet']['description'],
+                        date_created=playlist['snippet']['publishedAt'],
+                        author_playlist=playlist['snippet']['channelTitle']
+                )
+
+                if sf_playlist.should_scrape():
+                    yield ComponentLoader('playlist', { 'playlist_name' : playlist['snippet']['title'],
+                                                        'description' : playlist['snippet']['description'],
+                                                        'date_created' : playlist['snippet']['publishedAt'],
+                                                        'author_playlist' : playlist['snippet']['channelTitle'],
+                                                        'entry_out_of' : "{} of {}".format(i, total_results)
+                                                    })
+                i+=1
+
+                if "nextPageToken" in json_data:
+                    page_token=json_data['nextPageToken']
+                else:
+                    break
+
+                url=url+"&pageToken="+page_token
+                self.driver.get(url)
+                json_text = self.driver.find_element_by_tag_name('body').text
+                json_data = json.loads(json_text)
