@@ -21,7 +21,7 @@ class TweetSpider(Spider):
         self.driver= self.init_driver()
 
     def init_driver(self):
-        path = os.path.relpath('./dep-bin/')
+        path = os.path.relpath('../dep-bin/')
 
         if platform.uname().system == 'Linux':
             if platform.uname().machine == 'x86_64':
