@@ -2,6 +2,8 @@ import time
 import tweepy
 import re
 import os
+import platform
+import logging
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
@@ -18,7 +20,27 @@ class TweetSpider(Spider):
         self.driver= self.init_driver()
 
     def init_driver(self):
-        path = os.path.join(os.getcwd(), 'dep-bin', 'phantomjs', 'bin', 'phantomjs')
+        path = os.path.relpath('../dep-bin/')
+        if platform.uname().system == 'Linux':
+            if platform.uname().machine == 'x86_64':
+                path = os.path.join(
+                    path, 'phantomjs-2.1.1-linux-x86_64', 'bin', 'phantomjs'
+                )
+            elif platform.uname().machine == 'i686':
+                path = os.path.join(
+                    path, 'phantomjs-2.1.1-linux-i686', 'bin', 'phantomjs'
+                )
+        elif platform.uname().system == 'Windows':
+            path = os.path.join(
+                path, 'phantomjs-2.1.1-windows', 'bin', 'phantomjs'
+            )
+        else:
+            msg = 'Unsupported platform: (%s, %s)'\
+                  % (platform.system(), platform.machine())
+            logging.error(msg)
+            raise NotImplemented(msg)
+
+        logging.info('Using phantomjs binary: %s', path)
         driver = webdriver.PhantomJS(executable_path=path)
         driver.wait = WebDriverWait(driver, 5)
         return driver
