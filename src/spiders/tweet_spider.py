@@ -20,7 +20,7 @@ class TweetSpider(Spider):
         self.driver= self.init_driver()
 
     def init_driver(self):
-        path = os.path.relpath('./dep-bin/')
+        path = os.path.relpath('../dep-bin/')
 
         if platform.uname().system == 'Linux':
             if platform.uname().machine == 'x86_64':
@@ -206,7 +206,6 @@ class TweetSpider(Spider):
         sf_replies=sf.get('replies')
         driver.get("https://twitter.com/{}/status/{}".format(author_name, tweet_id))
         time.sleep(2)
-        driver.save_screenshot('oh_elle.png')
         try:
             replies_div =driver.find_elements_by_xpath(".//div[@data-component-context='replies']")
 
