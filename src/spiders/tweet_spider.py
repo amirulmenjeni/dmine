@@ -32,7 +32,7 @@ class TweetSpider(Spider):
                 )
         elif platform.uname().system == 'Windows':
             path = os.path.join(
-                path, 'phantomjs-2.1.1-windows', 'bin', 'phantomjs'
+                path, 'phantomjs-2.1.1-windows', 'bin', 'phantomjs.exe'
             )
         else:
             msg = 'Unsupported platform: (%s, %s)'\
