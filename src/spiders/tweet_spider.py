@@ -1,6 +1,7 @@
 import time
 import tweepy
 import re
+import json
 import os
 import platform
 import logging
@@ -20,7 +21,8 @@ class TweetSpider(Spider):
         self.driver= self.init_driver()
 
     def init_driver(self):
-        path = os.path.relpath('../dep-bin/')
+        path = os.path.relpath('./dep-bin/')
+
         if platform.uname().system == 'Linux':
             if platform.uname().machine == 'x86_64':
                 path = os.path.join(
@@ -85,7 +87,6 @@ class TweetSpider(Spider):
         sf.add_var('tweet_type', default='mixed', info='Tweet types to scan: recent, popular and mixed')
         sf.add_var('skip_replies', default=True, type=bool,info='Skip replies for each scanned tweet if set to True.')
         sf.add_var('skip_author_info', default=True, type=bool,info='Skip author info for each tweet')
-        sf.add_var('limit', default= 5, info='limit results to be shown')
         sf.add_var('keyword', default="", info='the keyword in the tweet')
         sf.add_var('lang', default="en", info='language of tweet')
         sf.add_var('replies_limit', default=0, info='limit on replies to be shown if exists')
@@ -98,18 +99,56 @@ class TweetSpider(Spider):
                             re.UNICODE)
         return myre.sub('',text)
 
+    def fetch_trendings(self, api):
+        trends1 = api.trends_place(1) #get worldwide 50 trending tweet topics
+        data = trends1[0]
+        trends = data['trends']
+        trends_list = [trend['name'] for trend in trends]
+        return trends_list
+
     def start(self, sf):
-        searched_tweets = self.scrape(sf)
+        consumer_key=sf.ret('consumer_key')
+        consumer_secret=sf.ret('consumer_secret')
+        access_token=sf.ret('access_token')
+        access_token_secret=sf.ret('access_token_secret')
+
+        searched_tweets = []
+        last_id = -1
+
+        auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
+        auth.set_access_token(access_token, access_token_secret)
+        api = tweepy.API(auth)
+        keyword = sf.ret('keyword')
+
+        if not keyword:
+            trendings=self.fetch_trendings(api)
+            #for trend in trendings:
+        for trend in trendings:
+            keyword=trend
+            while True:
+                try:
+                    new_tweets = api.search(q=keyword, lang=sf.ret('lang'), rrp=100, count=1500, result_type=sf.ret('tweet_type'), max_id=str(last_id - 1)) #max results per page
+                    if not new_tweets:
+                        break
+                    for tweet in self.scrape_tweet(api, sf, new_tweets):
+                        yield tweet
+                    last_id = new_tweets[-1].id
+
+                except tweepy.TweepError as e:
+                    break
+
+    def scrape_tweet(self, api, sf, searched_tweets):
         sf_tweet = sf.get('tweet')
+
         for x in searched_tweets:
             tag_name =  x.user.screen_name
             user_name = x.user.name
             tweet_id=x.id
 
-            replies= self.fetch_replies(tag_name, tweet_id, sf)
-            replies_count = next(replies)
+            counts=api.get_status(tweet_id)
+            replies_count =counts.retweet_count
 
-            fav_count = next(self.fetch_fav())
+            fav_count =counts.favorite_count
 
             sf_tweet.set_attr_values(
                      author=tag_name,
@@ -121,20 +160,20 @@ class TweetSpider(Spider):
 
             if sf_tweet.should_scrape():
                 yield ComponentLoader('tweet', {
-                                                 'Tweet id' : int(tweet_id),
+                                                 'tweet_id' : int(tweet_id),
                                                  'author' : "@"+tag_name,
-                                                 'username' : self.remove_emojis(user_name),
+                                                 'username' : user_name,
                                                  'body' : str(x.text),
                                                  'lang': x.lang,
                                                  'Date created' : x.created_at.strftime("%T %B %d, %Y"),
                                                  'retweet' : int(x.retweet_count),
-                                                 'replies' : int(replies_count),
+                                                 'replies' : replies_count,
                                                  'fav count' : int(fav_count)
                 })
 
             #yield replies if skip_replies set to False and replies count not 0
             if not sf.ret('skip_replies') and replies_count != 0:
-                for x in replies:
+                for x in self.fetch_replies(self.driver, tag_name, tweet_id, sf):
                     yield x
 
             if sf.ret('skip_author_info'):
@@ -164,49 +203,10 @@ class TweetSpider(Spider):
                             'is_verified' : x.user.verified,
                         })
 
-    def scrape(self, sf):
-        consumer_key=sf.ret('consumer_key')
-        consumer_secret=sf.ret('consumer_secret')
-        access_token=sf.ret('access_token')
-        access_token_secret=sf.ret('access_token_secret')
-
-        searched_tweets = []
-        last_id = -1
-        limit = int(sf.ret('limit'))
-        #Get all tweet results up to limit
-
-        auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-        auth.set_access_token(access_token, access_token_secret)
-        api = tweepy.API(auth)
-
-        while len(searched_tweets) < limit:
-            count = limit - len(searched_tweets)
-
-            try:
-                new_tweets = api.search(q=sf.ret('keyword'), lang=sf.ret('lang'), result_type=sf.ret('tweet_type'), count=limit, max_id=str(last_id - 1))
-                if not new_tweets:
-                    break
-                searched_tweets.extend(new_tweets)
-                last_id = new_tweets[-1].id
-
-            except tweepy.TweepError as e:
-
-                break
-
-        return searched_tweets
-
-    def fetch_fav(self):
-        try:
-            f=self.driver.find_element_by_xpath("//a[@class='request-favorited-popup']").get_attribute("data-activity-popup-title")
-            f=int(f.split(' ')[0].replace(',', ''))
-        except:
-            f=0
-        yield f
-
-    def fetch_replies(self, author_name, tweet_id, sf):
+    def fetch_replies(self, driver, author_name, tweet_id, sf):
         sf_replies=sf.get('replies')
         self.driver.get("https://twitter.com/{}/status/{}".format(author_name, tweet_id))
-        time.sleep(2)
+        time.sleep(1)
 
         try:
             replies_div =self.driver.find_elements_by_xpath(".//div[@data-component-context='replies']")
@@ -223,14 +223,10 @@ class TweetSpider(Spider):
 
             replies_div =self.driver.find_elements_by_xpath("//div[@data-component-context='replies']")
         except:
-            yield 0
-
-        if sf.ret('skip_replies'):
-            yield len(replies_div) #returns the amount of replies for each tweet
+            pass
+        
         c_list=[]
         replies_div.pop(0)
-
-        yield len(replies_div)
 
         #Scrape replies
         for x in replies_div:
