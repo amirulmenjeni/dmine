@@ -1,7 +1,6 @@
 import time
 import tweepy
 import re
-import json
 import os
 import platform
 import logging
@@ -87,7 +86,6 @@ class TweetSpider(Spider):
         sf.add_var('tweet_type', default='mixed', info='Tweet types to scan: recent, popular and mixed')
         sf.add_var('skip_replies', default=True, type=bool,info='Skip replies for each scanned tweet if set to True.')
         sf.add_var('skip_author_info', default=True, type=bool,info='Skip author info for each tweet')
-        sf.add_var('limit', type=int, default= 5, info='limit results to be shown')
         sf.add_var('keyword', default="", info='the keyword in the tweet')
         sf.add_var('lang', default="en", info='language of tweet')
         sf.add_var('replies_limit', default=0, info='limit on replies to be shown if exists')
@@ -115,9 +113,7 @@ class TweetSpider(Spider):
 
         searched_tweets = []
         last_id = -1
-        limit = int(sf.ret('limit'))
 
-        #Get all tweet results up to limit
         auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
         auth.set_access_token(access_token, access_token_secret)
         api = tweepy.API(auth)
