@@ -77,7 +77,7 @@ class Component:
         self.scrape_filter.run_interpreter()
         return self.flag
 
-    def set_attr_values(self, **attributes):
+    def set_attr_values(self, lenient=False, **attributes):
         """
         @param **attributes: A dictionary of attributes where the attribute's
                              name is the key and its attribute value is 
@@ -85,6 +85,14 @@ class Component:
         """
         for k in attributes:
             self.get(k).value = attributes[k]
+            self.get(k).is_assigned = True
+
+        if not lenient:
+            for k in self.attr:
+                if not self.get(k).is_assigned:
+                    self.__throw_value_unassigned_error(k)
+                    break
+
 
     def all_set(self):
         """
@@ -95,6 +103,13 @@ class Component:
             if self.attr[k].value is None:
                 return False
         return True
+
+    def __throw_value_unassigned_error(self, name):
+        msg = 'When setting the attribute values of the component '\
+              '\'%s\', the attribute \'%s\' is not assigned.'\
+              % (self.name, name)
+        logging.error(msg)
+        raise ValueError(msg)
 
     def __throw_attr_name_error(self, name):
         msg = 'An attribute in the component \'%s\' with '\
@@ -121,6 +136,7 @@ class Attribute:
     name = ''
     info = ''
     value = None
+    is_assigned = False
 
     def __init__(self, component, name, info=''):
         """
@@ -136,6 +152,7 @@ class Attribute:
         self.name = name
         self.info = info
         self.value = None
+        self.is_assigned = False
 
 class Variable:
     """
@@ -150,10 +167,13 @@ class Variable:
     name = ''
     info = ''
     type = str
+    choice = None
     value = None
     default_value = None
 
-    def __init__(self, scrape_filter, name, type=str, default=None, info=''):
+    def __init__(
+        self, scrape_filter, name, type=str, choice=None, default=None, info=''
+    ):
         """
         @param scrape_filter: The scrape filter object that is used
                               to define this variable from.
@@ -169,6 +189,7 @@ class Variable:
         self.scrape_filter = scrape_filter
         self.name = name
         self.type = type
+        self.choice = choice
         self.value = None
         self.default_value = default
         self.info = info
@@ -185,17 +206,42 @@ class Variable:
             elif value in (0, 'False'):
                 return False
             else:
-                Variable.__throw_type_error(self.name, value, self.type)
-        return self.type(value) 
+                Variable.__throw_value_error(self.name, value, self.type)
 
-    def __throw_type_error(name, value, type):
+        try:
+            return self.type(value) 
+        except ValueError:
+            Variable.__throw_value_error(self.name, value, self.type)
+
+    def __is_in_choice(self, value):
+        """
+        @param value: The value passed to this variable.
+
+        Returns True if the given value is found in the 
+        this Variable's choice or if choice is not set (i.e. None).
+        Otherwise, returns False.
+        """
+        return (self.choice is None) or (value in self.choice)
+
+    def set_value(self, value):
+        if value is None:
+            self.value = None
+            return
+        if not self.__is_in_choice(value):
+            Variable.__throw_invalid_choice_error(self.name, value, self.type)
+        self.value = self.__to_type(value)
+
+    def __throw_value_error(name, value, type):
         msg = 'Invalid value for the type %s of variable \'%s\': %s'\
               % (type, name, value)
         logging.error(msg)
         raise TypeError(msg)
 
-    def set_value(self, value):
-        self.value = self.__to_type(value)
+    def __throw_invalid_choice_error(name, value, type):
+        msg = 'Invalid choice for the type %s of variable \'%s\': %s'\
+               % (type, name, value)
+        logging.error(msg)
+        raise ValueError(msg)
 
 class VarType:
     """
@@ -275,10 +321,15 @@ class ScrapeFilter:
             ScrapeFilter.__throw_comp_name_error(name)
         self.comp[name] = Component(self, name, info)
 
-    def add_var(self, name, type=str, default='', info=''):
+    def add_var(self, name, type=str, choice=None, default='', info=''):
         """
         @param name: The name of the variable.
-        @param defval: The default value assigned to the variable.
+        @param type: The type of the variable to be parsed as.
+        @param choice: The finite choice the the variable's value
+                       must be selected from. If the variable's value
+                       is not in the `choice` list, then it's an invalid
+                       value.
+        @param default: The default value assigned to the variable.
         @param info: The information pertaining the variable.
 
         Add a new variable to this scrape filter.
@@ -286,7 +337,7 @@ class ScrapeFilter:
         if name in self.var:
             msg = 'The variable name \'%s\' already exist.' % name
             ScrapeFilter.__throw_error(msg)
-        self.var[name] = Variable(self, name, type, default, info)
+        self.var[name] = Variable(self, name, type, choice, default, info)
 
     def is_name_valid(name):
         """
@@ -407,12 +458,16 @@ class ScrapeFilter:
             name = '@' + k
             info = self.var[k].info
             type = self.var[k].type.__name__
+            choice = self.var[k].choice
             default = self.var[k].default_value
             if isinstance(default, str):
                 default = '\'' + default + '\''
             default = str(default)
             variable = INDENT + name + ' (type: ' + type + ', default: '\
-                       + default +')'
+                       + default
+            if choice is not None:
+                variable += ', choice: ' + str(choice)
+            variable += ')'
             wrapper.initial_indent = INDENT * 2
             wrapper.subsequent_indent = INDENT * 2
             info = wrapper.fill(info)
