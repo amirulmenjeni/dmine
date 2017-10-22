@@ -1,5 +1,6 @@
 import os
 import json
+import platform
 from dmine import Spider, ComponentLoader
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
@@ -9,11 +10,31 @@ base_url = "https://www.googleapis.com/youtube/v3/"
 class YoutubeSpider(Spider):
     name = "youtube"
 
-    def init(self, sf):
+    def __init__(self):
         self.driver = self.init_driver()
 
     def init_driver(self):
-        path = os.path.join(os.getcwd(), 'dep-bin', 'phantomjs', 'bin', 'phantomjs')
+        path = os.path.relpath('../dep-bin/')
+
+        if platform.uname().system == 'Linux':
+            if platform.uname().machine == 'x86_64':
+                path = os.path.join(
+                    path, 'phantomjs-2.1.1-linux-x86_64', 'bin', 'phantomjs'
+                )
+            elif platform.uname().machine == 'i686':
+                path = os.path.join(
+                    path, 'phantomjs-2.1.1-linux-i686', 'bin', 'phantomjs'
+                )
+        elif platform.uname().system == 'Windows':
+            path = os.path.join(
+                path, 'phantomjs-2.1.1-windows', 'bin', 'phantomjs'
+            )
+        else:
+            msg = 'Unsupported platform: (%s, %s)'\
+                  % (platform.system(), platform.machine())
+            logging.error(msg)
+            raise NotImplemented(msg)
+
         driver = webdriver.PhantomJS(executable_path=path)
         driver.wait = WebDriverWait(driver, 5)
         return driver
@@ -22,6 +43,7 @@ class YoutubeSpider(Spider):
         sf.add_com('channel', info="Seaerch Keyword by channel name")
         sf.add_com('playlist', info="Seaerch Keyword by playlist titles")
         sf.add_com('video', info="Search Keyword by video titles")
+        sf.add_com('comments', info="")
 
         sf_vid=sf.get('video')
         sf_vid.add('publishedAt')
@@ -41,22 +63,28 @@ class YoutubeSpider(Spider):
         sf_playlist.add('date_created')
         sf_playlist.add('description')
 
+        sf_comments=sf.get('comments')
+        sf_comments.add('channel_author')
+        sf_comments.add('body')
+        sf_comments.add('like_count')
+        sf_comments.add('reply_count')
+        sf_comments.add('publishedAt')
 
         sf.add_var('search_types', type=list, default=['playlist'], info='Search options [ video, channel, playlist ]')
         sf.add_var('order_by', default='relevance', info= 'Available options: upload date, ratings, relevance, title[Resources are sorted alphabetically by title], videocount, viewcount')
-        sf.add_var('limit_vid', type=int, default = '5', info='limit for scraped video')
-        sf.add_var('limit_channel', type=int, default = '5', info='limit for scraped video')
-        sf.add_var('limit_playlist', type=int, default = '5', info='limit for scraped video')
         sf.add_var('keyword', default='', info='keyword to be scanned')
         sf.add_var('skip_comments', type=bool, default='True', info='Scan comments option')
-        if sf.ret('skip_comments'):
-            sf_vid.add('limit_comment', default='20', info='Limit the number of comments scanned per video')
         sf.add_var('dev_key', default='AIzaSyCzsqDb0cxtKTcVDNZUU6mWbyPnAIRa0bs', info='Developer Key to access Youtube API')
 
     def start(self, sf):
-        self.init(sf)
         url_list= self.construct_url(sf)
         types=sf.ret('search_types')
+
+        if not sf.ret('keyword'): #if keyword not specified search by most popular vid on youtube
+             for result in self.search_by_vid(sf, url_list):
+                yield result
+             return
+
         func_dict = { 'video' : self.search_by_vid(sf, url_list['video']),
                        'channel' : self.search_by_channel(sf,  url_list['channel']),
                        'playlist' : self.search_by_playlist(sf,  url_list['playlist'])
@@ -70,18 +98,15 @@ class YoutubeSpider(Spider):
         dev_key=sf.ret('dev_key')
         q=sf.ret('keyword')
 
-        types_dict = { 'video' : sf.ret('limit_vid'),
-                       'channel' : sf.ret('limit_channel'),
-                       'playlist' : sf.ret('limit_channel')
-                     }
+        if not q : # Search by trending videos
+            url = base_url + 'search?&key={}&part=snippet&chart=mostPopular&maxResults=50'.format(dev_key)
+            return url
 
         types=sf.ret('search_types')
+        types_dict={}
 
         for search_type in types:
-            if types_dict[search_type] > 50: #if limit is set to above 50 (Max resources returned per page is 50)
-                 types_dict[search_type] = 50
-
-            url = base_url + 'search?q={}&key={}&part=snippet&maxResults={}&type={}'.format(q, dev_key, types_dict[search_type], search_type)
+            url = base_url + 'search?q={}&key={}&part=snippet&maxResults=50&type={}'.format(q, dev_key, search_type)
             types_dict[search_type]=url #replace limit values with url
 
         return types_dict
@@ -112,13 +137,10 @@ class YoutubeSpider(Spider):
         dev_key=sf.ret('dev_key')
         total_results=json_data['pageInfo']['totalResults']
 
-        i=1
-        limit=sf.ret('limit_vid')
         page_token=""
-
-        while i <= limit: #get resources until limit is reached
+        i=1
+        while True: #get resources until limit is reached
             for result in json_data['items']:
-                if i > limit: return
                 vid_id=result['id']['videoId']
                 url_stats=base_url+'videos?part=statistics&id={}&key={}'.format(vid_id, dev_key)
                 self.driver.get(url_stats)
@@ -160,6 +182,10 @@ class YoutubeSpider(Spider):
                                                     })
                 i+=1
 
+                if not sf.ret('skip_comments'):
+                    for comment in self.fetch_comments(result['id']['videoId'], sf):
+                        yield comment
+
                 if "nextPageToken" in json_data:
                     page_token=json_data['nextPageToken']
                 else:
@@ -169,22 +195,19 @@ class YoutubeSpider(Spider):
                 self.driver.get(url)
                 json_text = self.driver.find_element_by_tag_name('body').text
                 json_data = json.loads(json_text)
+                break
+            break
 
     def search_by_channel(self, sf, url):
         self.driver.get(url)
         json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
         sf_channel=sf.get('channel')
         dev_key=sf.ret('dev_key')
-
-        i=1
-        limit=sf.ret('limit_channel')
         page_token=""
 
-        flag = False
-        while i <= limit: #get resources until limit is reached
+        while True: #get resources until limit is reached
 
             for channel in json_data['items']:
-                if i > limit or flag: return
                 channelID=channel['id']['channelId']
 
                 url_stats=base_url+'channels?part=statistics&id={}&key={}'.format(channelID, dev_key)
@@ -225,7 +248,7 @@ class YoutubeSpider(Spider):
                                                        'country' : location
                                                     })
 
-                i+=1
+
                 if "nextPageToken" in json_data:
                     page_token=json_data['nextPageToken']
                 else:
@@ -237,20 +260,53 @@ class YoutubeSpider(Spider):
                 json_text = self.driver.find_element_by_tag_name('body').text
                 json_data = json.loads(json_text)
 
+
+    def fetch_comments(self, vid_id, sf):
+        dev_key=sf.ret('dev_key')
+        url=base_url+"commentThreads?part=snippet&videoId={}&key={}&maxResults=50".format(vid_id, dev_key)
+        self.driver.get(url)
+        json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
+        sf_comments=sf.get('comments')
+
+        total_results=json_data['pageInfo']['totalResults']
+        page_token=""
+
+        while True: #get resources until limit is reached
+            for comment in json_data['items']:
+                reply_count=comment['snippet']['totalReplyCount']
+                is_public = comment['snippet']['isPublic']
+                canReply= comment['snippet']['canReply']
+                sf_comments.set_attr_values(
+                        channel_author= comment['snippet']['topLevelComment']['snippet']['authorDisplayName'],
+                        body=comment['snippet']['topLevelComment']['snippet']['textDisplay'],
+                        like_count=comment['snippet']['topLevelComment']['snippet']['likeCount'],
+                        reply_count=comment['snippet']['totalReplyCount'],
+                        publishedAt=comment['snippet']['topLevelComment']['snippet']['publishedAt']
+                )
+
+                if sf_comments.should_scrape():
+                    yield ComponentLoader('comments', { 'comment_id' : comment['snippet']['topLevelComment']['id'],
+                                                        'vid_id' :  comment['snippet']['videoId'],
+                                                        'channel_author': comment['snippet']['topLevelComment']['snippet']['authorDisplayName'],
+                                                        'body': comment['snippet']['topLevelComment']['snippet']['textDisplay'],
+                                                        'like_count': comment['snippet']['topLevelComment']['snippet']['likeCount'],
+                                                        'publishedAt' : comment['snippet']['topLevelComment']['snippet']['publishedAt'],
+                                                        'reply_count' : reply_count,
+                                                        'is_public' : is_public,
+                                                        'canReply' : canReply
+                                                        })
+
     def search_by_playlist(self, sf, url):
         self.driver.get(url)
         json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
         sf_playlist=sf.get('playlist')
         dev_key=sf.ret('dev_key')
-        limit=sf.ret('limit_playlist')
         total_results=json_data['pageInfo']['totalResults']
 
         i=1
         page_token=""
-        flag = False
-        while i <= limit: #get resources until limit is reached
+        while True: #get resources until limit is reached
             for playlist in json_data['items']:
-                if i > limit or flag: return
                 sf_playlist.set_attr_values(
                         playlist_name= playlist['snippet']['title'],
                         description=playlist['snippet']['description'],
