@@ -74,6 +74,8 @@ class YoutubeSpider(Spider):
         sf.add_var('order_by', default='relevance', info= 'Available options: upload date, ratings, relevance, title[Resources are sorted alphabetically by title], videocount, viewcount')
         sf.add_var('keyword', default='', info='keyword to be scanned')
         sf.add_var('skip_comments', type=bool, default='True', info='Scan comments option')
+        if sf.ret('skip_comments'):
+            sf_vid.add('limit_comment', default='20', info='Limit the number of comments scanned per video')
         sf.add_var('dev_key', default='AIzaSyCzsqDb0cxtKTcVDNZUU6mWbyPnAIRa0bs', info='Developer Key to access Youtube API')
 
     def start(self, sf):
@@ -195,8 +197,7 @@ class YoutubeSpider(Spider):
                 self.driver.get(url)
                 json_text = self.driver.find_element_by_tag_name('body').text
                 json_data = json.loads(json_text)
-                break
-            break
+            
 
     def search_by_channel(self, sf, url):
         self.driver.get(url)
