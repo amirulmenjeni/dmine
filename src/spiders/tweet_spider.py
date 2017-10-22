@@ -1,10 +1,6 @@
 import time
 import tweepy
 import re
-import os
-import platform
-import logging
-
 from dmine import Spider, ComponentLoader
 
 #   Simple Twitter spider using Tweepy API
@@ -30,7 +26,8 @@ class TweetSpider(Spider):
         # Attributes on replies / comments [WIP]
         sf_replies = sf.get('replies')
         sf_replies.add('retweet_count', info='The retweets of the comment')
-        sf_replies.add('likes', info='The likes of the comment')
+        sf_replies.add('fav_count', info='The likes of the comment')
+        sf_replies.add('replies_count', info='The retweets of the comment')
         sf_replies.add('body', info='The reply text body.')
         sf_replies.add('author', info='The user who posted')
 
@@ -102,6 +99,7 @@ class TweetSpider(Spider):
 
                 except tweepy.TweepError as e:
                     break
+                break
 
 
     def scrape_tweet(self, api, sf, searched_tweets):
@@ -113,7 +111,7 @@ class TweetSpider(Spider):
             tweet_id=x.id
 
             counts=api.get_status(tweet_id)
-            replies_count =counts.retweet_count
+            replies_count =int(counts.retweet_count)
 
             fav_count =counts.favorite_count
 
@@ -139,29 +137,27 @@ class TweetSpider(Spider):
                 })
 
             #yield replies if skip_replies set to False and replies count not 0
-            if not sf.ret('skip_replies') and int(replies_count) > 0:
-                #self.mentions_replies( api, tag_name, tweet_id, sf, reply_count)
+            if not sf.ret('skip_replies') and replies_count > 0:
+                #self.mentions_replies( api, tag_name, tweet_id, sf, replies_count)
+
                 sf_replies=sf.get('replies')
                 max_id = None
                 while True:
                     try:
-                        replies =api.search(q="to:%s" % tag_name, since_id=int(tweet_id), max_id=max_id,rpp=100, count=1500)
-                    except twitter.error.TwitterError as e:
-                        logging.error("caught twitter api error: %s", e)
-                        time.sleep(60)
+                        replies =api.search(q="to:%s" % tag_name, since_id=tweet_id, max_id=max_id, count=500)
+                    except:
                         continue
                     for reply in replies:
-                        print(":O")
-                        if reply.in_reply_to_status_id == tweet_id:
-
-                            counts=api.get_status(tweet_id)
+                        if reply.in_reply_to_status_id_str == str(tweet_id):
+                            counts=api.get_status(reply.id)
                             replies_count =counts.retweet_count
                             fav_count =counts.favorite_count
+
 
                             sf_replies.set_attr_values(
                                      author= reply.user.screen_name,
                                      retweet_count=reply.retweet_count,
-                                     likes=fav_count,
+                                     fav_count=fav_count,
                                      body=reply.text,
                                      replies_count=replies_count
                             )
@@ -172,13 +168,10 @@ class TweetSpider(Spider):
                                                                   'body' : reply.text,
                                                                   'retweet_count' : reply.retweet_count,
                                                                   'replies_count':replies_count,
-                                                                  'likes' : reply.favorite_count
+                                                                  'fav_count' : reply.favorite_count
                                                                  })
 
-                            # recursive magic to also get the replies to this reply
-                            for reply_to_reply in get_replies(reply):
-                                yield reply_to_reply
-                                max_id = reply.id
+                        max_id = reply.id
 
                     if len(replies) != 100:
                         break
@@ -209,22 +202,3 @@ class TweetSpider(Spider):
                             'statuses_count' : int(x.user.statuses_count),
                             'is_verified' : x.user.verified,
                         })
-
-    def mentions_replies(self, api, tag_name, tweet_id, sf, reply_count):
-        last_id = -1
-        i=0
-        flag = False
-        while True:
-            try:
-                new_tweets=api.search(q="to:"+tag_name, since_id=int(tweet_id), rpp=1, count=1, max_id=str(last_id - 1))
-                if not new_tweets:
-                    break
-                for tweet in new_tweets:
-                    if tweet.in_reply_to_status_id_str == str(tweet_id):
-                        print("found a reply")
-                        i+=1
-                last_id = new_tweets[-1].id
-
-            except tweepy.TweepError as e:
-                break
-        print(i, reply_count)
