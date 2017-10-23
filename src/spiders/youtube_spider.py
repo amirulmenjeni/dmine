@@ -1,9 +1,7 @@
-import os
 import json
 import requests
-from bs4 import BeautifulSoup
-import platform
 from dmine import Spider, ComponentLoader, Project
+
 base_url = "https://www.googleapis.com/youtube/v3/"
 
 class YoutubeSpider(Spider):
@@ -17,7 +15,7 @@ class YoutubeSpider(Spider):
         sf.add_com('channel', info="Seaerch Keyword by channel name")
         sf.add_com('playlist', info="Seaerch Keyword by playlist titles")
         sf.add_com('video', info="Search Keyword by video titles")
-        sf.add_com('comments', info="")
+        sf.add_com('comments', info="Comment for a video component")
 
         sf_vid=sf.get('video')
         sf_vid.add('publishedAt')
@@ -44,22 +42,21 @@ class YoutubeSpider(Spider):
         sf_comments.add('reply_count')
         sf_comments.add('publishedAt')
 
-        sf.add_var('search_types', type=list, default=['playlist'], info='Search options [ video, channel, playlist ]')
+        sf.add_var('search_types', type=list, default=['video','channel','playlist'], info='Search options [ video, channel, playlist ]')
         sf.add_var('order_by', default='relevance', info= 'Available options: upload date, ratings, relevance, title[Resources are sorted alphabetically by title], videocount, viewcount')
-        sf.add_var('keyword', default='', info='keyword to be scanned')
+        sf.add_var('keyword', default=None, info='keyword to be scanned')
         sf.add_var('skip_comments', type=bool, default='True', info='Scan comments option')
-        if sf.ret('skip_comments'):
-            sf_vid.add('limit_comment', default='20', info='Limit the number of comments scanned per video')
         sf.add_var('dev_key', default='AIzaSyCzsqDb0cxtKTcVDNZUU6mWbyPnAIRa0bs', info='Developer Key to access Youtube API')
 
     def start(self, sf):
         url_list= self.construct_url(sf)
         types=sf.ret('search_types')
+        print(url_list)
 
-        if not sf.ret('keyword'): #if keyword not specified search by most popular vid on youtube
-             for result in self.search_by_vid(sf, url_list):
+        if sf.ret('keyword') is None: #if keyword not specified search by most popular vid on youtube
+            for result in self.search_by_vid(sf, url_list):
                 yield result
-             return
+            return
 
         func_dict = { 'video' : self.search_by_vid(sf, url_list['video']),
                        'channel' : self.search_by_channel(sf,  url_list['channel']),
@@ -74,8 +71,9 @@ class YoutubeSpider(Spider):
         dev_key=sf.ret('dev_key')
         q=sf.ret('keyword')
 
-        if not q : # Search by trending videos if keyword is empty
+        if q is None: #if keyword not specified search by most popular vid on youtube
             url = base_url + 'search?&key={}&part=snippet&chart=mostPopular&maxResults=50'.format(dev_key)
+            print("why?")
             return url
 
         types=sf.ret('search_types')
@@ -87,19 +85,20 @@ class YoutubeSpider(Spider):
 
         return types_dict
 
-    def get_category_tags(self, vid_id, dev_key):
+    def get_tags(self, vid_id, dev_key):
         url=base_url+'videos?id={}&part=snippet&key={}'.format(vid_id, dev_key)
         json_data=requests.get(url, headers=self.HEADERS).json()
         tags=""
         if 'tags' in json_data['items'][0]['snippet']:
             tags=json_data['items'][0]['snippet']['tags']
+        return tags
+
+    def get_category(self, category_id, dev_key):
         category_id=json_data['items'][0]['snippet']['categoryId']
-
         url=base_url+'videoCategories?id={}&part=snippet&key={}'.format(category_id, dev_key)
-
         json_data=requests.get(url,headers=self.HEADERS).json()
         category=json_data['items'][0]['snippet']['title']
-        return tags, category
+        return category
 
     def search_by_vid(self, sf, url):
         order_by=sf.ret('order_by')
@@ -113,48 +112,47 @@ class YoutubeSpider(Spider):
         i=1
         while True: #get resources until limit is reached
             for result in json_data['items']:
-                vid_id=result['id']['videoId'] if 'videoId' in result['id'] else None
+                if 'videoId' not in result['id']: continue
+                vid_id=result['id']['videoId']
                 url_stats=base_url+'videos?part=statistics&id={}&key={}'.format(vid_id, dev_key)
-                """
+
                 vid_stats=requests.get(url_stats, headers=self.HEADERS).json()
-                stats = vid_stats['items'][0]['statistics']
 
-                if 'likeCount' in stats:
-                    likes=stats['likeCount']
-                    dislikes=stats['dislikeCount']
-                else:
-                    likes, dislikes = 'Disabled', 'Disabled'
+                data_dict= { 'vid_id' : vid_id,
+                             'entry_out_of' :"{} out of {}".format(i, total_results),
+                             'title' : result['snippet']['title'],
+                             'description' : result['snippet']['description'],
+                             'channel_author':result['snippet']['channelTitle'],
+                             'publishedAt': result['snippet']['publishedAt'].split("T")
+                            }
 
-                comment=stats['commentCount'] if 'commentCount' in stats else 0
-                try:
-                    views = stats['viewCount']
-                except:
-                    with open('id_none.json', 'w') as outfile:
-                        json.dump(result, outfile)
-                """
-                #tags, category = self.get_category_tags(vid_id, dev_key)
+                if  len(vid_stats['items']) > 0: #if stats is present in json
+                    stats = vid_stats['items'][0]['statistics']
+
+                    if 'likeCount' in stats:
+                        likes=stats['likeCount']
+                        dislikes=stats['dislikeCount']
+                    else:
+                        likes, dislikes = 'Disabled', 'Disabled'
+
+                    comment = stats['commentCount'] if 'commentCount' in stats else "Not specified"
+                    views = stats['viewCount'] if 'viewCount' in stats else "Not specified"
+
+                    data_dict.update({ 'views_count' : views,
+                                      'likes_count' : likes,
+                                      'dislike_count' : dislikes,
+                                      'comment_count' : comment
+                                    })
 
                 sf_vid.set_attr_values(
                         video_name= result['snippet']['title'],
                         description=result['snippet']['description'],
                         channel_author=result['snippet']['channelTitle'],
-                        publishedAt=result['snippet']['publishedAt']
+                        publishedAt=result['snippet']['publishedAt'],
                 )
 
                 if sf_vid.should_scrape():
-                    yield ComponentLoader('video', { 'vid_id' : vid_id,
-                                                     'entry_out_of' :"{} out of {}".format(i, total_results),
-                                                     'title' : result['snippet']['title'],
-                                                     'description' : result['snippet']['description'],
-                                                     'channel_author':result['snippet']['channelTitle'],
-                                                     'publishedAt': result['snippet']['publishedAt'].split("T")
-                                                     #'views_count' : views,
-                                                     #'likes_count' : likes,
-                                                     #'dislike_count' : dislikes,
-                                                     #'comment_count' : comment
-                                                     #'tags' : tags,
-                                                     #'category' : category
-                                                    })
+                    yield ComponentLoader('video', data_dict)
                 i+=1
 
                 if not sf.ret('skip_comments'):
@@ -164,12 +162,9 @@ class YoutubeSpider(Spider):
             if "nextPageToken" in json_data:
                 page_token=json_data['nextPageToken']
             else:
-                with open('final.json', 'w') as outfile:
-                    json.dump(result, outfile)
-                break
+                return
 
             new_url=url+"&pageToken="+page_token
-
             json_data = requests.get(new_url).json()
 
 
@@ -219,14 +214,13 @@ class YoutubeSpider(Spider):
                                                     })
 
 
-                if "nextPageToken" in json_data:
-                    page_token=json_data['nextPageToken']
-                else:
-                    flag=True
-                    break
+            if "nextPageToken" in json_data:
+                page_token=json_data['nextPageToken']
+            else:
+                return
 
-                url=url+"&pageToken="+page_token
-                json_data = requests.get(url).json()
+            new_url=url+"&pageToken="+page_token
+            json_data = requests.get(new_url).json()
 
 
     def fetch_comments(self, vid_id, sf):
@@ -267,9 +261,7 @@ class YoutubeSpider(Spider):
             if "nextPageToken" in json_data:
                 page_token=json_data['nextPageToken']
             else:
-                with open('final.json', 'w') as outfile:
-                    json.dump(result, outfile)
-                break
+                return
 
             new_url=url+"&pageToken="+page_token
             json_data = requests.get(new_url).json()
@@ -300,10 +292,10 @@ class YoutubeSpider(Spider):
                                                     })
                 i+=1
 
-                if "nextPageToken" in json_data:
-                    page_token=json_data['nextPageToken']
-                else:
-                    break
+            if "nextPageToken" in json_data:
+                page_token=json_data['nextPageToken']
+            else:
+                return
 
-                url=url+"&pageToken="+page_token
-                json_data = requests.get(url).json()
+            new_url=url+"&pageToken="+page_token
+            json_data = requests.get(new_url).json()
