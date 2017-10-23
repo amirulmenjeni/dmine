@@ -1,7 +1,7 @@
 import os
 import json
 import platform
-from dmine import Spider, ComponentLoader
+from dmine import Spider, ComponentLoader, Project
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 
@@ -14,21 +14,14 @@ class YoutubeSpider(Spider):
         self.driver = self.init_driver()
 
     def init_driver(self):
-        path = os.path.relpath('../dep-bin/')
-
+        path = Project.dep_bin_path
         if platform.uname().system == 'Linux':
             if platform.uname().machine == 'x86_64':
-                path = os.path.join(
-                    path, 'phantomjs-2.1.1-linux-x86_64', 'bin', 'phantomjs'
-                )
+                path = os.path.join(path, 'phantomjs-2.1.1_linux_x86_64')
             elif platform.uname().machine == 'i686':
-                path = os.path.join(
-                    path, 'phantomjs-2.1.1-linux-i686', 'bin', 'phantomjs'
-                )
+                path = os.path.join(path, 'phantomjs-2.1.1_linux_i686')
         elif platform.uname().system == 'Windows':
-            path = os.path.join(
-                path, 'phantomjs-2.1.1-windows', 'bin', 'phantomjs'
-            )
+            path = os.path.join(path, 'phantomjs-2.1.1_windows.exe')
         else:
             msg = 'Unsupported platform: (%s, %s)'\
                   % (platform.system(), platform.machine())
