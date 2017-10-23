@@ -1,36 +1,10 @@
-import os
 import json
-import platform
+import requests
 from dmine import Spider, ComponentLoader, Project
-from selenium import webdriver
-from selenium.webdriver.support.ui import WebDriverWait
-
 base_url = "https://www.googleapis.com/youtube/v3/"
 
 class YoutubeSpider(Spider):
     name = "youtube"
-
-    def __init__(self):
-        self.driver = self.init_driver()
-
-    def init_driver(self):
-        path = Project.dep_bin_path
-        if platform.uname().system == 'Linux':
-            if platform.uname().machine == 'x86_64':
-                path = os.path.join(path, 'phantomjs-2.1.1_linux_x86_64')
-            elif platform.uname().machine == 'i686':
-                path = os.path.join(path, 'phantomjs-2.1.1_linux_i686')
-        elif platform.uname().system == 'Windows':
-            path = os.path.join(path, 'phantomjs-2.1.1_windows.exe')
-        else:
-            msg = 'Unsupported platform: (%s, %s)'\
-                  % (platform.system(), platform.machine())
-            logging.error(msg)
-            raise NotImplemented(msg)
-
-        driver = webdriver.PhantomJS(executable_path=path)
-        driver.wait = WebDriverWait(driver, 5)
-        return driver
 
     def setup_filter(self, sf):
         sf.add_com('channel', info="Seaerch Keyword by channel name")
@@ -93,7 +67,7 @@ class YoutubeSpider(Spider):
         dev_key=sf.ret('dev_key')
         q=sf.ret('keyword')
 
-        if not q : # Search by trending videos
+        if not q : # Search by trending videos if keyword is empty
             url = base_url + 'search?&key={}&part=snippet&chart=mostPopular&maxResults=50'.format(dev_key)
             return url
 
@@ -108,26 +82,22 @@ class YoutubeSpider(Spider):
 
     def get_category_tags(self, vid_id, dev_key):
         url=base_url+'videos?id={}&part=snippet&key={}'.format(vid_id, dev_key)
-        self.driver.get(url)
-        json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
+        json_data=requests.get(url).json()
         tags=""
         if 'tags' in json_data['items'][0]['snippet']:
             tags=json_data['items'][0]['snippet']['tags']
         category_id=json_data['items'][0]['snippet']['categoryId']
 
         url=base_url+'videoCategories?id={}&part=snippet&key={}'.format(category_id, dev_key)
-        self.driver.get(url)
-        json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
+
+        json_data=requests.get(url).json()
         category=json_data['items'][0]['snippet']['title']
         return tags, category
 
     def search_by_vid(self, sf, url):
         order_by=sf.ret('order_by')
 
-        self.driver.get(url+"&order="+order_by)
-        json_text = self.driver.find_element_by_tag_name('body').text
-        json_data = json.loads(json_text)
-
+        json_data = requests.get(url+"&order="+order_by).json()
         sf_vid=sf.get('video')
         dev_key=sf.ret('dev_key')
         total_results=json_data['pageInfo']['totalResults']
@@ -138,9 +108,8 @@ class YoutubeSpider(Spider):
             for result in json_data['items']:
                 vid_id=result['id']['videoId']
                 url_stats=base_url+'videos?part=statistics&id={}&key={}'.format(vid_id, dev_key)
-                self.driver.get(url_stats)
 
-                vid_stats=json.loads(self.driver.find_element_by_tag_name('body').text)
+                vid_stats=requests.get(url_stats).json()
                 stats = vid_stats['items'][0]['statistics']
                 views=stats['viewCount']
 
@@ -187,18 +156,15 @@ class YoutubeSpider(Spider):
                     break
 
                 url=url+"&pageToken="+page_token
-                self.driver.get(url)
-                json_text = self.driver.find_element_by_tag_name('body').text
-                json_data = json.loads(json_text)
-            
+
+                json_data = requests.get(url).json()
+
 
     def search_by_channel(self, sf, url):
-        self.driver.get(url)
-        json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
+        json_data=requests.get(url).json()
         sf_channel=sf.get('channel')
         dev_key=sf.ret('dev_key')
         page_token=""
-
         while True: #get resources until limit is reached
 
             for channel in json_data['items']:
@@ -206,9 +172,7 @@ class YoutubeSpider(Spider):
 
                 url_stats=base_url+'channels?part=statistics&id={}&key={}'.format(channelID, dev_key)
 
-                self.driver.get(url_stats)
-
-                json_stats=json.loads(self.driver.find_element_by_tag_name('body').text)
+                json_stats=requests.get(url_stats).json()
 
                 stats=json_stats['items'][0]['statistics']
                 if not stats['hiddenSubscriberCount']:
@@ -219,8 +183,7 @@ class YoutubeSpider(Spider):
                 views_count = stats['viewCount']
 
                 url_stats=base_url+'channels?part=snippet&id={}&key={}'.format(channelID, dev_key)
-                self.driver.get(url_stats)
-                parsed_json=json.loads(self.driver.find_element_by_tag_name('body').text)
+                parsed_json=requests.get(url_stats).json()
                 items=parsed_json['items'][0]['snippet']
 
                 location=items['country'] if 'country' in items else "none"
@@ -250,16 +213,14 @@ class YoutubeSpider(Spider):
                     break
 
                 url=url+"&pageToken="+page_token
-                self.driver.get(url)
-                json_text = self.driver.find_element_by_tag_name('body').text
-                json_data = json.loads(json_text)
+                json_data = requests.get(url).json()
 
 
     def fetch_comments(self, vid_id, sf):
         dev_key=sf.ret('dev_key')
         url=base_url+"commentThreads?part=snippet&videoId={}&key={}&maxResults=50".format(vid_id, dev_key)
-        self.driver.get(url)
-        json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
+
+        json_data=requests.get(url).json()
         sf_comments=sf.get('comments')
 
         total_results=json_data['pageInfo']['totalResults']
@@ -291,8 +252,7 @@ class YoutubeSpider(Spider):
                                                         })
 
     def search_by_playlist(self, sf, url):
-        self.driver.get(url)
-        json_data=json.loads(self.driver.find_element_by_tag_name('body').text)
+        json_data=requests.get(url).json()
         sf_playlist=sf.get('playlist')
         dev_key=sf.ret('dev_key')
         total_results=json_data['pageInfo']['totalResults']
@@ -323,6 +283,4 @@ class YoutubeSpider(Spider):
                     break
 
                 url=url+"&pageToken="+page_token
-                self.driver.get(url)
-                json_text = self.driver.find_element_by_tag_name('body').text
-                json_data = json.loads(json_text)
+                json_data = requests.get(url).json()
