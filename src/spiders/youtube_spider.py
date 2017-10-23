@@ -1,6 +1,8 @@
 import os
 import json
 import requests
+from bs4 import BeautifulSoup
+import platform
 from dmine import Spider, ComponentLoader, Project
 base_url = "https://www.googleapis.com/youtube/v3/"
 
@@ -73,14 +75,14 @@ class YoutubeSpider(Spider):
         q=sf.ret('keyword')
 
         if not q : # Search by trending videos if keyword is empty
-            url = base_url + 'search?&key={}&part=snippet&chart=mostPopular&maxResults=5'.format(dev_key)
+            url = base_url + 'search?&key={}&part=snippet&chart=mostPopular&maxResults=50'.format(dev_key)
             return url
 
         types=sf.ret('search_types')
         types_dict={}
 
         for search_type in types:
-            url = base_url + 'search?q={}&key={}&part=snippet&maxResults=10&type={}'.format(q, dev_key, search_type)
+            url = base_url + 'search?q={}&key={}&part=snippet&maxResults=50&type={}'.format(q, dev_key, search_type)
             types_dict[search_type]=url #replace limit values with url
 
         return types_dict
@@ -111,13 +113,11 @@ class YoutubeSpider(Spider):
         i=1
         while True: #get resources until limit is reached
             for result in json_data['items']:
-                vid_id=result['id']['videoId']
-
+                vid_id=result['id']['videoId'] if 'videoId' in result['id'] else None
                 url_stats=base_url+'videos?part=statistics&id={}&key={}'.format(vid_id, dev_key)
-
+                """
                 vid_stats=requests.get(url_stats, headers=self.HEADERS).json()
                 stats = vid_stats['items'][0]['statistics']
-                views=stats['viewCount']
 
                 if 'likeCount' in stats:
                     likes=stats['likeCount']
@@ -126,7 +126,12 @@ class YoutubeSpider(Spider):
                     likes, dislikes = 'Disabled', 'Disabled'
 
                 comment=stats['commentCount'] if 'commentCount' in stats else 0
-
+                try:
+                    views = stats['viewCount']
+                except:
+                    with open('id_none.json', 'w') as outfile:
+                        json.dump(result, outfile)
+                """
                 #tags, category = self.get_category_tags(vid_id, dev_key)
 
                 sf_vid.set_attr_values(
@@ -142,11 +147,11 @@ class YoutubeSpider(Spider):
                                                      'title' : result['snippet']['title'],
                                                      'description' : result['snippet']['description'],
                                                      'channel_author':result['snippet']['channelTitle'],
-                                                     'publishedAt': result['snippet']['publishedAt'].split("T"),
-                                                     'views_count' : views,
-                                                     'likes_count' : likes,
-                                                     'dislike_count' : dislikes,
-                                                     'comment_count' : comment
+                                                     'publishedAt': result['snippet']['publishedAt'].split("T")
+                                                     #'views_count' : views,
+                                                     #'likes_count' : likes,
+                                                     #'dislike_count' : dislikes,
+                                                     #'comment_count' : comment
                                                      #'tags' : tags,
                                                      #'category' : category
                                                     })
@@ -159,6 +164,8 @@ class YoutubeSpider(Spider):
             if "nextPageToken" in json_data:
                 page_token=json_data['nextPageToken']
             else:
+                with open('final.json', 'w') as outfile:
+                    json.dump(result, outfile)
                 break
 
             new_url=url+"&pageToken="+page_token
@@ -233,6 +240,7 @@ class YoutubeSpider(Spider):
         page_token=""
 
         while True: #get resources until limit is reached
+
             for comment in json_data['items']:
                 reply_count=comment['snippet']['totalReplyCount']
                 is_public = comment['snippet']['isPublic']
@@ -256,6 +264,15 @@ class YoutubeSpider(Spider):
                                                         'is_public' : is_public,
                                                         'canReply' : canReply
                                                         })
+            if "nextPageToken" in json_data:
+                page_token=json_data['nextPageToken']
+            else:
+                with open('final.json', 'w') as outfile:
+                    json.dump(result, outfile)
+                break
+
+            new_url=url+"&pageToken="+page_token
+            json_data = requests.get(new_url).json()
 
     def search_by_playlist(self, sf, url):
         json_data=requests.get(url).json()
