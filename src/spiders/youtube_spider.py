@@ -1,10 +1,17 @@
+import os
 import json
 import requests
+from bs4 import BeautifulSoup
+import platform
 from dmine import Spider, ComponentLoader, Project
 base_url = "https://www.googleapis.com/youtube/v3/"
 
 class YoutubeSpider(Spider):
     name = "youtube"
+    HEADERS = {'user-agent': ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5)'
+                          'AppleWebKit/537.36 (KHTML, like Gecko)'
+                          'Chrome/45.0.2454.101 Safari/537.36'),
+                          'Cache-Control': 'max-age=0, no-cache'}
 
     def setup_filter(self, sf):
         sf.add_com('channel', info="Seaerch Keyword by channel name")
@@ -68,21 +75,21 @@ class YoutubeSpider(Spider):
         q=sf.ret('keyword')
 
         if not q : # Search by trending videos if keyword is empty
-            url = base_url + 'search?&key={}&part=snippet&chart=mostPopular&maxResults=50'.format(dev_key)
+            url = base_url + 'search?&key={}&part=snippet&chart=mostPopular&maxResults=5'.format(dev_key)
             return url
 
         types=sf.ret('search_types')
         types_dict={}
 
         for search_type in types:
-            url = base_url + 'search?q={}&key={}&part=snippet&maxResults=50&type={}'.format(q, dev_key, search_type)
+            url = base_url + 'search?q={}&key={}&part=snippet&maxResults=10&type={}'.format(q, dev_key, search_type)
             types_dict[search_type]=url #replace limit values with url
 
         return types_dict
 
     def get_category_tags(self, vid_id, dev_key):
         url=base_url+'videos?id={}&part=snippet&key={}'.format(vid_id, dev_key)
-        json_data=requests.get(url).json()
+        json_data=requests.get(url, headers=self.HEADERS).json()
         tags=""
         if 'tags' in json_data['items'][0]['snippet']:
             tags=json_data['items'][0]['snippet']['tags']
@@ -90,7 +97,7 @@ class YoutubeSpider(Spider):
 
         url=base_url+'videoCategories?id={}&part=snippet&key={}'.format(category_id, dev_key)
 
-        json_data=requests.get(url).json()
+        json_data=requests.get(url,headers=self.HEADERS).json()
         category=json_data['items'][0]['snippet']['title']
         return tags, category
 
@@ -107,9 +114,10 @@ class YoutubeSpider(Spider):
         while True: #get resources until limit is reached
             for result in json_data['items']:
                 vid_id=result['id']['videoId']
+
                 url_stats=base_url+'videos?part=statistics&id={}&key={}'.format(vid_id, dev_key)
 
-                vid_stats=requests.get(url_stats).json()
+                vid_stats=requests.get(url_stats, headers=self.HEADERS).json()
                 stats = vid_stats['items'][0]['statistics']
                 views=stats['viewCount']
 
@@ -119,9 +127,9 @@ class YoutubeSpider(Spider):
                 else:
                     likes, dislikes = 'Disabled', 'Disabled'
 
-                comment=stats['commentCount']
+                comment=stats['commentCount'] if 'commentCount' in stats else 0
 
-                tags, category = self.get_category_tags(vid_id, dev_key)
+                #tags, category = self.get_category_tags(vid_id, dev_key)
 
                 sf_vid.set_attr_values(
                         video_name= result['snippet']['title'],
@@ -131,7 +139,7 @@ class YoutubeSpider(Spider):
                 )
 
                 if sf_vid.should_scrape():
-                    yield ComponentLoader('video', { 'vid_id' : result['id']['videoId'],
+                    yield ComponentLoader('video', { 'vid_id' : vid_id,
                                                      'entry_out_of' :"{} out of {}".format(i, total_results),
                                                      'title' : result['snippet']['title'],
                                                      'description' : result['snippet']['description'],
@@ -140,9 +148,9 @@ class YoutubeSpider(Spider):
                                                      'views_count' : views,
                                                      'likes_count' : likes,
                                                      'dislike_count' : dislikes,
-                                                     'comment_count' : comment,
-                                                     'tags' : tags,
-                                                     'category' : category
+                                                     'comment_count' : comment
+                                                     #'tags' : tags,
+                                                     #'category' : category
                                                     })
                 i+=1
 
@@ -150,14 +158,14 @@ class YoutubeSpider(Spider):
                     for comment in self.fetch_comments(result['id']['videoId'], sf):
                         yield comment
 
-                if "nextPageToken" in json_data:
-                    page_token=json_data['nextPageToken']
-                else:
-                    break
+            if "nextPageToken" in json_data:
+                page_token=json_data['nextPageToken']
+            else:
+                break
 
-                url=url+"&pageToken="+page_token
+            new_url=url+"&pageToken="+page_token
 
-                json_data = requests.get(url).json()
+            json_data = requests.get(new_url).json()
 
 
     def search_by_channel(self, sf, url):
