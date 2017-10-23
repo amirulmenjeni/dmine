@@ -1,8 +1,6 @@
 import os
 import json
 import requests
-from bs4 import BeautifulSoup
-import platform
 from dmine import Spider, ComponentLoader, Project
 base_url = "https://www.googleapis.com/youtube/v3/"
 
