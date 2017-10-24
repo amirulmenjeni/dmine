@@ -1,8 +1,8 @@
 @echo off
-
+Title=Dmine installer 
 set dep-bin=dep-bin
 set build_path=Dmine
-set shortcut=shortcut.sh
+set shortcut=shortcut.bat
 
 CALL :expect %dep-bin%
 CALL :expect %build_path%
@@ -40,22 +40,24 @@ xcopy /O /X /E /H /K  "%dep-bin%" "%ProgramFiles%\Dmine\%dep-bin%\"
 if EXIST "%ProgramFiles%/%build_path%" (
   echo "Build path Success."
 ) else (
-  echo "Failed."
+  echo "Build path Failed."
   EXIT /b 0
 )
 
 :: Create shortcut script to the executable file at USERPROFILE/Desktop
-set shortcut_path="%USERPROFILE%\Desktop\Dmine_2"
+set shortcut_path="%USERPROFILE%\.dmine"
 echo "==> Creating a shortcut to '%shortcut_path%'."
 
 if EXIST "%shortcut_path%" (
     echo "Shortcut already exists. Removing it to create a new one."
-    del /Q /S "%shortcut_path%\*"
+    del /Q /S "%shortcut_path%"
+	goto skip
 )
 
-goto end
+MKDIR "%shortcut_path%"
 
-MD "%shortcut_path%\Dmine"
+:skip
+copy %shortcut% %shortcut_path%
 
 if EXIST "%shortcut_path%" (
     echo "Success."
@@ -76,5 +78,5 @@ IF EXIST "%~1" (
 :: Finish.
 echo "==> Installation finished. Please run 'dmine' to ensure successful "\
      "installation."
-
+cmd.exe /K %shortcut_path%\shortcut.bat
 :End
