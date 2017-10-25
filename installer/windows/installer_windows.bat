@@ -61,11 +61,23 @@ copy %shortcut% %shortcut_path%
 
 if EXIST "%shortcut_path%" (
     echo "Success."
-    EXIT /b 1
 ) else (
     echo "Failed."
     EXIT /b 0
 )
+
+:: copy reg keys for persistent dmine alias
+:: Finish.
+echo "==> Registering alias for Dmine..."
+
+copy "reg_keys.reg" %shortcut_path%
+
+reg import %shortcut_path%\reg_keys.reg
+
+:: Finish.
+echo "==> Installation finished. Please run 'dmine' to ensure successful installation."
+
+goto end	 
 
 :expect
 IF EXIST "%~1" (
@@ -75,8 +87,4 @@ IF EXIST "%~1" (
     EXIT /b 1
 )
 
-:: Finish.
-echo "==> Installation finished. Please run 'dmine' to ensure successful "\
-     "installation."
-cmd.exe /K %shortcut_path%\shortcut.bat
 :End
