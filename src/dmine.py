@@ -17,6 +17,18 @@ import textwrap
 from sfl import Interpreter
 from abc import ABCMeta, abstractmethod
 
+class Project:
+    version = ''
+    root_path = ''
+    dep_bin_path = ''
+
+    def ver(version):
+        Project.version = version
+
+    def root(root_path):
+        Project.root_path = root_path
+        Project.dep_bin_path = os.path.join(Project.root_path, 'dep-bin')
+    
 class Component:
     """
     WARNING: This class isn't supposed to be instantiated outside

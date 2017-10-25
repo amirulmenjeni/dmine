@@ -34,7 +34,7 @@ class Lexer:
     
         i = 0
         c = ''
-        opt_chars = '[(){}<>!=andornotin\[\]\,]'
+        opt_chars = '[(){}<>!=andornotin\[\]\,search]'
         while i < len(line):
             errored_token = line[i]
             # Ignore whitespace.
@@ -70,7 +70,7 @@ class Lexer:
 
                 # Assume it's an operator.
                 opts = '^(\(|\)|\{|\}|<|<=|>|>=|=='\
-                       '|!=|=|and|or|not|in|\[|\]|,)$'
+                       '|!=|=|and|or|not|in|search|\[|\]|,)$'
                 operator, i = Lexer.__scan(
                     i, line, opt_chars, opts
                 )
@@ -219,7 +219,7 @@ class Parser:
     prev = None          # The previous token.
 
     # Tuple of valid comparators.
-    comparators = ('<', '<=', '>', '>=', '==', '!=', 'not', 'in')
+    comparators = ('<', '<=', '>', '>=', '==', '!=', 'not', 'in', 'search')
 
     def __init__(self, tokens):
         """
@@ -308,7 +308,8 @@ class Parser:
             return True
         self.__throw_parse_error(
             'Expected the symbol \'%s\' but got \'%s\' instead. '\
-            % (symbol, self.curr[0])
+            'Previous token: %s'
+            % (symbol, self.curr[0], self.prev[0])
         )
 
     def parse(self):
@@ -628,7 +629,7 @@ class Evaluator:
 
         i = 0
         opts = ('<', '<=', '>', '>=', '==', '!=',\
-                'and', 'or', 'not', 'in', '(', 'boolean')
+                'and', 'or', 'not', 'in', 'search', '(', 'boolean')
         negate = False
         while i < len(n.children):
 
@@ -684,6 +685,7 @@ class Evaluator:
                     'notin': lambda x, y: x not in y,
                     'and': lambda x, y: x and y,
                     'or': lambda x, y: x or y,
+                    'search': lambda x, y: re.search(x, y) is not None,
                     '(': lambda x, y: y,
                     'boolean': lambda x, y: x
                 }

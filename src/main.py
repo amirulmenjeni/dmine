@@ -2,6 +2,7 @@
 #
 # This is module is the starting point of dmine.
 
+import os
 import sys
 import time
 import argparse
@@ -10,10 +11,18 @@ import time
 import logging
 import math
 import re
-from dmine import Utils, Spider, ScrapeFilter, ComponentLoader
+from dmine import Utils, Spider, ScrapeFilter, ComponentLoader, Project
 from spiders import *
 
 def main():
+
+    ##################################################
+    # Project data.
+    ##################################################
+    root_path = os.path.dirname(os.path.realpath(sys.argv[0]))
+    root_path = os.path.realpath(os.path.join(root_path, os.pardir))
+    Project.root(root_path)
+
     ##################################################
     # Parser.
     ##################################################
