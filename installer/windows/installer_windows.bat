@@ -70,12 +70,10 @@ if EXIST "%shortcut_path%" (
 :: Finish.
 echo "==> Registering alias for Dmine..."
 
-copy "reg_keys.reg" %shortcut_path%
-
-reg import %shortcut_path%\reg_keys.reg
+setx PATH "%PATH%;%ProgramFiles%\Dmine\Dmine" /m
 
 :: Finish.
-echo "==> Installation finished. Please run 'dmine' to ensure successful installation."
+echo "==> Installation finished. Please restart the cmd and run 'dmine' to ensure successful installation."
 
 goto end	 
 
