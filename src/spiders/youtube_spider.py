@@ -1,5 +1,7 @@
 import json
 import requests
+import asyncio
+from aiohttp import ClientSession
 from dmine import Spider, ComponentLoader, Project
 
 base_url = "https://www.googleapis.com/youtube/v3/"
@@ -22,7 +24,7 @@ class YoutubeSpider(Spider):
         sf_vid.add('video_name')
         sf_vid.add('description')
         sf_vid.add('channel_author')
-
+        
         sf_channel=sf.get('channel')
         sf_channel.add('channel_name')
         sf_channel.add('description')
@@ -49,14 +51,15 @@ class YoutubeSpider(Spider):
         sf.add_var('dev_key', default='AIzaSyCzsqDb0cxtKTcVDNZUU6mWbyPnAIRa0bs', info='Developer Key to access Youtube API')
 
     def start(self, sf):
-        url_list= self.construct_url(sf)
-        types=sf.ret('search_types')
-        print(url_list)
-
-        if sf.ret('keyword') is None: #if keyword not specified search by most popular vid on youtube
-            for result in self.search_by_vid(sf, url_list):
+        if sf.ret('keyword') is None: #if keyword not specified search by Tredings vid on youtube
+            dev_key=sf.ret('dev_key')
+            url = base_url + 'search?&key={}&part=snippet&chart=mostPopular&maxResults=50'.format(dev_key)
+            for result in self.search_by_vid(sf, url):
                 yield result
             return
+
+        url_list=self.construct_url(sf)
+        types=sf.ret('search_types')
 
         func_dict = { 'video' : self.search_by_vid(sf, url_list['video']),
                        'channel' : self.search_by_channel(sf,  url_list['channel']),
@@ -70,11 +73,6 @@ class YoutubeSpider(Spider):
     def construct_url(self, sf):
         dev_key=sf.ret('dev_key')
         q=sf.ret('keyword')
-
-        if q is None: #if keyword not specified search by most popular vid on youtube
-            url = base_url + 'search?&key={}&part=snippet&chart=mostPopular&maxResults=50'.format(dev_key)
-            print("why?")
-            return url
 
         types=sf.ret('search_types')
         types_dict={}
@@ -100,45 +98,49 @@ class YoutubeSpider(Spider):
         category=json_data['items'][0]['snippet']['title']
         return category
 
+    def field_check(self, keys, data):
+        if keys not in data:
+            return "Not specified"
+        else:
+            return data[keys]
+
     def search_by_vid(self, sf, url):
         order_by=sf.ret('order_by')
-
         json_data = requests.get(url+"&order="+order_by).json()
         sf_vid=sf.get('video')
         dev_key=sf.ret('dev_key')
         total_results=json_data['pageInfo']['totalResults']
-
         page_token=""
+
         i=1
         while True: #get resources until limit is reached
             for result in json_data['items']:
                 if 'videoId' not in result['id']: continue
                 vid_id=result['id']['videoId']
                 url_stats=base_url+'videos?part=statistics&id={}&key={}'.format(vid_id, dev_key)
-
                 vid_stats=requests.get(url_stats, headers=self.HEADERS).json()
 
                 data_dict= { 'vid_id' : vid_id,
-                             'entry_out_of' :"{} out of {}".format(i, total_results),
+                             'entry' :"{} out of {}".format(i, total_results),
                              'title' : result['snippet']['title'],
                              'description' : result['snippet']['description'],
                              'channel_author':result['snippet']['channelTitle'],
                              'publishedAt': result['snippet']['publishedAt'].split("T")
                             }
 
-                if  len(vid_stats['items']) > 0: #if stats is present in json
+                if  len(vid_stats['items']) > 0: #if stats is present in vid_stats
                     stats = vid_stats['items'][0]['statistics']
 
                     if 'likeCount' in stats:
                         likes=stats['likeCount']
                         dislikes=stats['dislikeCount']
                     else:
-                        likes, dislikes = 'Disabled', 'Disabled'
+                        likes, dislikes =  "Not specified", "Not specified"
 
-                    comment = stats['commentCount'] if 'commentCount' in stats else "Not specified"
-                    views = stats['viewCount'] if 'viewCount' in stats else "Not specified"
+                    comment = self.field_check('commentCount', stats)
+                    views = self.field_check('viewCount', stats)
 
-                    data_dict.update({ 'views_count' : views,
+                    data_dict.update({'views_count' : views,
                                       'likes_count' : likes,
                                       'dislike_count' : dislikes,
                                       'comment_count' : comment
@@ -148,7 +150,7 @@ class YoutubeSpider(Spider):
                         video_name= result['snippet']['title'],
                         description=result['snippet']['description'],
                         channel_author=result['snippet']['channelTitle'],
-                        publishedAt=result['snippet']['publishedAt'],
+                        publishedAt=result['snippet']['publishedAt']
                 )
 
                 if sf_vid.should_scrape():
@@ -159,14 +161,17 @@ class YoutubeSpider(Spider):
                     for comment in self.fetch_comments(result['id']['videoId'], sf):
                         yield comment
 
+                if not sf.ret('skip_comments'):
+                    for comment in self.search_by_channel(result['id']['videoId'], sf):
+                        yield comment
+
             if "nextPageToken" in json_data:
                 page_token=json_data['nextPageToken']
             else:
-                return
+                return #exits if there is no next pageToken
 
             new_url=url+"&pageToken="+page_token
             json_data = requests.get(new_url).json()
-
 
     def search_by_channel(self, sf, url):
         json_data=requests.get(url).json()
@@ -174,7 +179,6 @@ class YoutubeSpider(Spider):
         dev_key=sf.ret('dev_key')
         page_token=""
         while True: #get resources until limit is reached
-
             for channel in json_data['items']:
                 channelID=channel['id']['channelId']
 
@@ -183,10 +187,7 @@ class YoutubeSpider(Spider):
                 json_stats=requests.get(url_stats).json()
 
                 stats=json_stats['items'][0]['statistics']
-                if not stats['hiddenSubscriberCount']:
-                    subscribers_count = stats['subscriberCount']
-                else:
-                    subscribers_count = "hidden"
+                subscribers_count = self.field_check('subscriberCount', stats)
                 video_count = stats['videoCount']
                 views_count = stats['viewCount']
 
@@ -194,7 +195,7 @@ class YoutubeSpider(Spider):
                 parsed_json=requests.get(url_stats).json()
                 items=parsed_json['items'][0]['snippet']
 
-                location=items['country'] if 'country' in items else "none"
+                location= self.field_check('country', items)
                 sf_channel.set_attr_values(
                         channel_name= channel['snippet']['title'],
                         description=channel['snippet']['description'],
@@ -234,7 +235,6 @@ class YoutubeSpider(Spider):
         page_token=""
 
         while True: #get resources until limit is reached
-
             for comment in json_data['items']:
                 reply_count=comment['snippet']['totalReplyCount']
                 is_public = comment['snippet']['isPublic']
