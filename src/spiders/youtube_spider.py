@@ -46,7 +46,7 @@ class YoutubeSpider(Spider):
         sf.add_var('order_by', default='relevance', info= 'Available options: upload date, ratings, relevance, title[Resources are sorted alphabetically by title], videocount, viewcount')
         sf.add_var('keyword', default=None, info='keyword to be scanned')
         sf.add_var('skip_comments', type=bool, default='True', info='Scan comments option')
-        sf.add_var('dev_key', default='AIzaSyCzsqDb0cxtKTcVDNZUU6mWbyPnAIRa0bs', info='Developer Key to access Youtube API')
+        sf.add_var('dev_key', default='xxx', info='Developer Key to access Youtube API')
 
     def start(self, sf):
         url_list= self.construct_url(sf)
