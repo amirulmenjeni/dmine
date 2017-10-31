@@ -1,7 +1,5 @@
 import json
 import requests
-import asyncio
-from aiohttp import ClientSession
 from dmine import Spider, ComponentLoader, Project
 
 base_url = "https://www.googleapis.com/youtube/v3/"
@@ -24,7 +22,7 @@ class YoutubeSpider(Spider):
         sf_vid.add('video_name')
         sf_vid.add('description')
         sf_vid.add('channel_author')
-        
+
         sf_channel=sf.get('channel')
         sf_channel.add('channel_name')
         sf_channel.add('description')
@@ -54,8 +52,7 @@ class YoutubeSpider(Spider):
         if sf.ret('keyword') is None: #if keyword not specified search by Tredings vid on youtube
             dev_key=sf.ret('dev_key')
             url = base_url + 'search?&key={}&part=snippet&chart=mostPopular&maxResults=50'.format(dev_key)
-            for result in self.search_by_vid(sf, url):
-                yield result
+            yield from self.search_by_vid(sf, url)
             return
 
         url_list=self.construct_url(sf)
@@ -158,12 +155,10 @@ class YoutubeSpider(Spider):
                 i+=1
 
                 if not sf.ret('skip_comments'):
-                    for comment in self.fetch_comments(result['id']['videoId'], sf):
-                        yield comment
+                    yield from self.fetch_comments(result['id']['videoId'], sf)
 
                 if not sf.ret('skip_comments'):
-                    for comment in self.search_by_channel(result['id']['videoId'], sf):
-                        yield comment
+                    yield from self.search_by_channel(result['id']['videoId'], sf)
 
             if "nextPageToken" in json_data:
                 page_token=json_data['nextPageToken']
@@ -181,9 +176,7 @@ class YoutubeSpider(Spider):
         while True: #get resources until limit is reached
             for channel in json_data['items']:
                 channelID=channel['id']['channelId']
-
                 url_stats=base_url+'channels?part=statistics&id={}&key={}'.format(channelID, dev_key)
-
                 json_stats=requests.get(url_stats).json()
 
                 stats=json_stats['items'][0]['statistics']
