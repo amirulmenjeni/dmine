@@ -1,9 +1,8 @@
 import time
 import tweepy
-import re
-from dmine import Spider, ComponentLoader
+from dmine import Spider, ComponentLoader, Project
 
-#   Simple Twitter spider using Tweepy API
+#   A Twitter spider using Tweepy API
 #   You will need to generate your own API keys before accessing the Twitter api
 #   Guide on how this is done: https://auth0.com/docs/connections/social/twitter
 
@@ -19,14 +18,14 @@ class TweetSpider(Spider):
         sf_tweet = sf.get('tweet')
         sf_tweet.add('author', info='author of the tweet')
         sf_tweet.add('lang', info='The language of the tweet post')
-        sf_tweet.add('retweet_count', info='The retweets of the tweet')
-        sf_tweet.add('fav_count',  info='The likes of the tweet')
-        sf_tweet.add('replies_count', info='Replies of the tweet')
+        sf_tweet.add('retweet_count', info='no. of retweets')
+        sf_tweet.add('fav_count',  info='no. of fav ')
+        sf_tweet.add('replies_count', info='no. of replies made to the tweet')
 
         # Attributes on replies / comments [WIP]
         sf_replies = sf.get('replies')
         sf_replies.add('retweet_count', info='The retweets of the comment')
-        sf_replies.add('fav_count', info='The likes of the comment')
+        sf_replies.add('fav_count', info='The no. of favs of the comment')
         sf_replies.add('replies_count', info='The retweets of the comment')
         sf_replies.add('body', info='The reply text body.')
         sf_replies.add('author', info='The user who posted')
@@ -42,7 +41,7 @@ class TweetSpider(Spider):
         sf_user.add('statuses_count', info='No. of tweets user has posted')
 
         # Create variables.
-        #Line 64-68 is negliblle if you are not using your own Twitter account
+        #Line 64-68 is negligible if you are not using your own Twitter account
         sf.add_var('access_token', default='914875844623044609-sBDRGtzpWvcxVxznEutXO06IcPwNDbM', info='Required Keys to access api ')
         sf.add_var('access_token_secret', default='PlDBngjOu06GS9Bgu0wkOoehkag0ivzRc8ZJo3M7XtgSp', info='Required Keys to access api ')
         sf.add_var('consumer_key', default='fX7byz3KYiiQvfbs6xuCdgYYt', info='Required Keys to access api ')
@@ -54,14 +53,6 @@ class TweetSpider(Spider):
         sf.add_var('keyword', default="", info='the keyword in the tweet')
         sf.add_var('lang', default="en", info='language of tweet')
         sf.add_var('replies_limit', default=0, info='limit on replies to be shown if exists')
-
-    def remove_emojis(self, text):
-        myre = re.compile(u'('
-                            u'\ud83c[\udf00-\udfff]|'
-                            u'\ud83d[\udc00-\ude4f\ude80-\udeff]|'
-                            u'[\u2600-\u26FF\u2700-\u27BF])+',
-                            re.UNICODE)
-        return myre.sub('',text)
 
     def fetch_trendings(self, api):
         trends1 = api.trends_place(1) #get worldwide 50 trending tweet topics
@@ -76,9 +67,6 @@ class TweetSpider(Spider):
         access_token=sf.ret('access_token')
         access_token_secret=sf.ret('access_token_secret')
 
-        searched_tweets = []
-        last_id = -1
-
         auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
         auth.set_access_token(access_token, access_token_secret)
         api = tweepy.API(auth)
@@ -86,20 +74,27 @@ class TweetSpider(Spider):
 
         if not keyword:
             trendings=self.fetch_trendings(api)
-        for trend in trendings:
-            keyword=trend
-            while True:
-                try:
-                    new_tweets = api.search(q=keyword, lang=sf.ret('lang'), count=100, result_type=sf.ret('tweet_type'), max_id=str(last_id - 1)) #max results per page
-                    if not new_tweets:
-                        break
-                    for tweet in self.scrape_tweet(api, sf, new_tweets):
-                        yield tweet
-                    last_id = new_tweets[-1].id
+            for trend in trendings:
+                keyword=trend
+                #Load tweets up to limit
+                yield from self.load_tweets(api, sf, keyword)
+        else:
+            yield from self.load_tweets(api, sf, keyword)
 
-                except tweepy.TweepError as e:
+
+    def load_tweets(self, api, sf, keyword):
+        last_id = -1
+
+        while True:
+            try:
+                new_tweets = api.search(q=keyword, lang=sf.ret('lang'), count=100, result_type=sf.ret('tweet_type'), max_id=str(last_id - 1)) #max results per page
+                if not new_tweets:
                     break
-                break
+                yield from self.scrape_tweet(api, sf, new_tweets)
+                last_id = new_tweets[-1].id
+
+            except tweepy.TweepError as e:
+                return
 
 
     def scrape_tweet(self, api, sf, searched_tweets):
@@ -183,7 +178,7 @@ class TweetSpider(Spider):
 
             sf_user.set_attr_values(
                             tag_name=str(x.user.screen_name),
-                            username= self.remove_emojis(str(x.user.name)),
+                            username= str(x.user.name),
                             location=str(x.user.location),
                             followers=int(x.user.followers_count),
                             user_lang=str(x.user.lang),
@@ -195,7 +190,7 @@ class TweetSpider(Spider):
                         yield ComponentLoader('tweet_user', {
                             'user_id' : int(x.user.id),
                             'tag_name' : x.user.screen_name,
-                            'username' :  self.remove_emojis(x.user.name),
+                            'username' :  x.user.name,
                             'location' :  str(x.user.location),
                             'user_lang' : x.user.lang,
                             'followers' : int(x.user.followers_count),
