@@ -1,5 +1,9 @@
 import time
 import tweepy
+import requests
+import json
+from bs4 import BeautifulSoup
+import re
 from dmine import Spider, ComponentLoader, Project
 
 #   A Twitter spider using Tweepy API
@@ -82,6 +86,7 @@ class TweetSpider(Spider):
             yield from self.load_tweets(api, sf, keyword)
 
 
+
     def load_tweets(self, api, sf, keyword):
         last_id = -1
 
@@ -96,6 +101,80 @@ class TweetSpider(Spider):
             except tweepy.TweepError as e:
                 return
 
+    def load_replies(self, sf, author, tweet_id):
+        base_url="https://twitter.com/i/{}/conversation/{}?include_available_features=1&include_entities=1&max_position={}&reset_error_state=false"
+        pos=None
+        data_dict = {}
+        i=0
+
+        while True:
+            data=requests.get(base_url.format(author, tweet_id, pos))
+
+            try:
+                json_data=json.loads(data.content)
+            except ValueError:
+
+                break
+            parsed=BeautifulSoup(json_data['items_html'],  "lxml")
+
+            if sf.ret('skip_replies'):
+                reply_div=parsed.find("button", { "class":"ProfileTweet-actionButton js-actionButton js-actionReply"})
+                reply_count=reply_div.find("span", {"class" : "ProfileTweet-actionCountForPresentation"}).text
+                if reply_count == "":
+                    reply_count=0
+                return reply_count
+
+            body=parsed.find_all("p", {"class":"TweetTextSize js-tweet-text tweet-text"})
+            author=parsed.find_all("a", "account-group js-account-group js-action-profile js-user-profile-link js-nav")
+
+            for i in range(1,len(author)):
+                print(author[i].find("span","username u-dir").text, body[i].text)
+            if not json_data['has_more_items']:
+                break
+            pos=json_data['min_position']
+
+
+
+        """
+        sf_replies.set_attr_values(
+                 author= reply.user.screen_name,
+                 retweet_count=reply.retweet_count,
+                 fav_count=fav_count,
+                 body=body,
+                 replies_count=replies_count
+        )
+
+        if sf_replies.should_scrape():
+            yield ComponentLoader('replies', {'reply_id' :reply.id,
+                                              'author' : reply.user.screen_name,
+                                              'body' : reply.text
+
+                                             })
+        yield from content
+        """
+    def load_status(self, author, tweet_id):
+        ses = requests.Session()
+        base_url="https://twitter.com/i/{}/conversation/{}?include_available_features=1&include_entities=1&max_position={}&reset_error_state=false"
+        data=ses.get(base_url.format(author, tweet_id, None))
+
+        try:
+            json_data=json.loads(data.content)
+        except ValueError:
+            logging.info("..")
+        parsed=BeautifulSoup(json_data['items_html'],  "lxml")
+        try: #if twitter does not exist 
+            reply_div=parsed.find("button", { "class":"ProfileTweet-actionButton js-actionButton js-actionReply"})
+            reply_count=reply_div.find("span", {"class" : "ProfileTweet-actionCountForPresentation"}).text
+        except:
+            return 0, 0
+
+        if reply_count == "":
+            reply_count=0
+        fav_div=parsed.find("button", { "class":"ProfileTweet-actionButton js-actionButton js-actionFavorite"})
+        fav_count=fav_div.find("span", {"class" : "ProfileTweet-actionCountForPresentation"}).text
+        if fav_count == "":
+            fav_count=0
+        return reply_count, fav_count
 
     def scrape_tweet(self, api, sf, searched_tweets):
         sf_tweet = sf.get('tweet')
@@ -105,10 +184,7 @@ class TweetSpider(Spider):
             user_name = x.user.name
             tweet_id=x.id
 
-            counts=api.get_status(tweet_id)
-            replies_count =int(counts.retweet_count)
-
-            fav_count =counts.favorite_count
+            replies_count, fav_count=self.load_status(tag_name, tweet_id)
 
             sf_tweet.set_attr_values(
                      author=tag_name,
@@ -130,46 +206,6 @@ class TweetSpider(Spider):
                                                  'replies' : replies_count,
                                                  'fav_count' : int(fav_count)
                 })
-
-            #yield replies if skip_replies set to False and replies count not 0
-            if not sf.ret('skip_replies') and replies_count > 0:
-                #self.mentions_replies( api, tag_name, tweet_id, sf, replies_count)
-
-                sf_replies=sf.get('replies')
-                max_id = None
-                while True:
-                    try:
-                        replies =api.search(q="to:%s" % tag_name, since_id=tweet_id, max_id=max_id, count=500)
-                    except:
-                        continue
-                    for reply in replies:
-                        if reply.in_reply_to_status_id_str == str(tweet_id):
-                            counts=api.get_status(reply.id)
-                            replies_count =counts.retweet_count
-                            fav_count =counts.favorite_count
-
-
-                            sf_replies.set_attr_values(
-                                     author= reply.user.screen_name,
-                                     retweet_count=reply.retweet_count,
-                                     fav_count=fav_count,
-                                     body=reply.text,
-                                     replies_count=replies_count
-                            )
-
-                            if sf_replies.should_scrape():
-                                yield ComponentLoader('replies', {'reply_id' :reply.id,
-                                                                  'author' : reply.user.screen_name,
-                                                                  'body' : reply.text,
-                                                                  'retweet_count' : reply.retweet_count,
-                                                                  'replies_count':replies_count,
-                                                                  'fav_count' : reply.favorite_count
-                                                                 })
-
-                        max_id = reply.id
-
-                    if len(replies) != 100:
-                        break
 
             if sf.ret('skip_author_info'):
                 continue
