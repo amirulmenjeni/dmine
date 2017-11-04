@@ -1,6 +1,7 @@
 import time
 import tweepy
 import requests
+import logging
 import json
 from bs4 import BeautifulSoup
 import re
@@ -170,16 +171,15 @@ class TweetSpider(Spider):
         try: #if tweet does not exist
             reply_div=parsed.find("button", { "class":"ProfileTweet-actionButton js-actionButton js-actionReply"})
             reply_count=reply_div.find("span", {"class" : "ProfileTweet-actionCountForPresentation"}).text
+            if reply_count == "":
+                reply_count=0
+            fav_div=parsed.find("button", { "class":"ProfileTweet-actionButton js-actionButton js-actionFavorite"})
+            fav_count=fav_div.find("span", {"class" : "ProfileTweet-actionCountForPresentation"}).text
+            if fav_count == "":
+                fav_count=0
+            yield reply_count, fav_count
         except:
             yield 0, 0
-
-        if reply_count == "":
-            reply_count=0
-        fav_div=parsed.find("button", { "class":"ProfileTweet-actionButton js-actionButton js-actionFavorite"})
-        fav_count=fav_div.find("span", {"class" : "ProfileTweet-actionCountForPresentation"}).text
-        if fav_count == "":
-            fav_count=0
-        yield reply_count, fav_count
 
         if not sf.ret('skip_replies'):
             url=base_url.format(author, tweet_id, "{}")
