@@ -6,9 +6,8 @@ import os
 import sys
 import time
 import argparse
-import threading
-import time
 import logging
+import time
 import math
 import re
 from dmine import Utils, Spider, ScrapeFilter, ComponentLoader, Project
@@ -156,22 +155,18 @@ def main():
         for c in spider_classes:
             if c.name == args.spider:
                 found = True
-                spider_thread = threading.Thread(
-                            target=run_spider,
-                            args=(c(), args),
-                        )
-                spider_thread.start()
+                run_spider(c(), args)
                 
         if not found:
             logging.error('Unable to run spider. '\
                           'No spider named \'%s\' found.' % args.spider)
 
 
-# @param instance: An instance of a Spider class.
-# @param args: Parsed argparse object.
-#
-# Spider running on its thread.
 def run_spider(instance, args):
+    """
+     @param instance: An instance of a Spider class.
+     @param args: Parsed argparse object.
+    """
     timeout = time.time() + args.timeout
 
     # If args.filter value is an sfl file, then use the utility method
