@@ -51,7 +51,6 @@ class YoutubeSpider(Spider):
     def start(self, sf):
         url_list= self.construct_url(sf)
         types=sf.ret('search_types')
-        print(url_list)
 
         if sf.ret('keyword') is None: #if keyword not specified search by most popular vid on youtube
             for result in self.search_by_vid(sf, url_list):
