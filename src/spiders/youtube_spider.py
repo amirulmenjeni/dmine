@@ -72,8 +72,7 @@ class YoutubeSpider(Spider):
         q=sf.ret('keyword')
 
         if q is None: #if keyword not specified search by most popular vid on youtube
-            url = base_url + 'search?&key={}&part=snippet&chart=mostPopular&maxResults=50'.format(dev_key)
-            print("why?")
+            url = base_url + 'search?&key={}&part=snippet&chart=mostPopular&maxResults=50'.format(dev_key)        
             return url
 
         types=sf.ret('search_types')
