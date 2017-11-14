@@ -45,8 +45,9 @@ following command.
 
 Then we pass the SFL script to `-f` argument, as shown in the following example.
 
-``` $ dmine -s my_spider -f "component_1 { 0 < attr_1 < 100 and 'some_string' in
-attr_2}" ```
+``` 
+$ dmine -s my_spider -f "component_1 { 0 < attr_1 < 100 and 'some_string' in attr_2}" 
+```
 
 If you have a lengthy SFL script, you can save the SFL script in a file with a
 `.sfl` extension and then pass it to `-f` option. SFL ignores all whitespaces
