@@ -65,7 +65,8 @@ Only collect posts with positive scores and submitted from the subreddit
 [r/gaming](https://www.reddit.com/r/gaming) and
 [r/linuxmemes](https://www.reddit.com/r/linuxmemes) with all comments collected:
 
-``` $ dmine -s reddit -f "@subreddits = 'gaming, linuxmemes' post { score > 0 }"
+``` 
+$ dmine -s reddit -f "@subreddits = 'gaming, linuxmemes' post { score > 0 }"
 ```
 
 Make the spider skips trodding the comments in each treaded post:
