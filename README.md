@@ -22,7 +22,13 @@ Enterprise](http://www.pixelated.asia).
 website. You can also create your own spider to allow it take advantage of SFL
 for easy filtering.
 
-``` $ dmine -l reddit twitter my_spider ...  ```
+```
+$ dmine -l
+reddit 
+twitter
+my_spider
+...  
+```
 
 ### Using A Spider
 
