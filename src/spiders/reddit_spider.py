@@ -169,9 +169,9 @@ class RedditSpider(Spider):
                     'author': str(post.author)
                 })
 
-                if not sf.ret('skip_comments'):
-                    for comment in self.scrape_comments(sf, post):
-                        yield comment
+            if not sf.ret('skip_comments'):
+                for comment in self.scrape_comments(sf, post):
+                    yield comment
 
     def scrape_comments(self, sf, post):
         """
